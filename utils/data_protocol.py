@@ -192,15 +192,19 @@ def protocol_fewshot(folder: str,
 
         regions = check_region_validity(folder, regions, y)
 
-        f = glob(os.path.join(folder, f"{regions[0]}*test_s2.npy"))[0]
+        f_x = glob(os.path.join(folder, f"{regions[0]}*test_s2.npy"))[0]
+        ref_x = np.load(f_x, mmap_mode='r')
+        f_y = glob(os.path.join(folder, f"{regions[0]}*test_label_{y}.npy"))[0]
+        ref_y = np.load(f_y, mmap_mode='r')
+
         d_size = n*len(regions)
         d_size_val = int(np.ceil(n*val_ratio)*len(regions))
-        ref = np.load(f, mmap_mode='r')
-        train_X_temp = np.zeros_like(a=ref, shape=(d_size, ref.shape[1], ref.shape[2], ref.shape[3]))
-        val_X_temp = np.zeros_like(a=ref, shape=(d_size_val, ref.shape[1], ref.shape[2], ref.shape[3]))
-        train_y_temp = np.zeros_like(a=ref, shape=(d_size, ref.shape[1], ref.shape[2], ref.shape[3]))
-        val_y_temp = np.zeros_like(a=ref, shape=(d_size_val, ref.shape[1], ref.shape[2], ref.shape[3]))
-        del ref
+
+        train_X_temp = np.zeros_like(a=ref_x, shape=(d_size, ref_x.shape[1], ref_x.shape[2], ref_x.shape[3]))
+        val_X_temp = np.zeros_like(a=ref_x, shape=(d_size_val, ref_x.shape[1], ref_x.shape[2], ref_x.shape[3]))
+        train_y_temp = np.zeros_like(a=ref_y, shape=(d_size, ref_y.shape[1], ref_y.shape[2], ref_y.shape[3]))
+        val_y_temp = np.zeros_like(a=ref_y, shape=(d_size_val, ref_y.shape[1], ref_y.shape[2], ref_y.shape[3]))
+        del ref_x ; ref_y
 
         for i, region in enumerate(regions):
             # generate multi array for region
@@ -241,4 +245,7 @@ def protocol_fewshot(folder: str,
 
 
 if __name__ == '__main__':
-    x_train, y_train, x_val, y_val = protocol_fewshot('/phileo_data/downstream/downstream_dataset_patches_np/', dst='/phileo_data/downstream/downstream_datasets_nshot/', n=10, y='building')
+    x_train, y_train, x_val, y_val = protocol_fewshot('/phileo_data/downstream/downstream_dataset_patches_np/',
+                                                      dst='/phileo_data/downstream/downstream_datasets_nshot/',
+                                                      n=1,
+                                                      y='roads')
