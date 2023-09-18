@@ -204,7 +204,7 @@ def protocol_fewshot(folder: str,
         val_X_temp = np.zeros_like(a=ref_x, shape=(d_size_val, ref_x.shape[1], ref_x.shape[2], ref_x.shape[3]))
         train_y_temp = np.zeros_like(a=ref_y, shape=(d_size, ref_y.shape[1], ref_y.shape[2], ref_y.shape[3]))
         val_y_temp = np.zeros_like(a=ref_y, shape=(d_size_val, ref_y.shape[1], ref_y.shape[2], ref_y.shape[3]))
-        del ref_x ; ref_y
+        del ref_x ; del ref_y
 
         for i, region in enumerate(regions):
             # generate multi array for region
@@ -220,23 +220,49 @@ def protocol_fewshot(folder: str,
 
             x_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_train_files])
             y_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_train_files])
-            train_indexes = random.sample(range(0, len(x_train)), n)
-
-            for j, idx in enumerate(train_indexes):
-                train_X_temp[(n*i)+j] = x_train[idx]
-                train_y_temp[(n * i) + j] = y_train[idx]
-            del x_train; del y_train
-
             x_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_val_files])
             y_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_val_files])
-            val_indexes = random.sample(range(0, len(x_val)), int(np.ceil(n*val_ratio)))
 
-            for j, idx in enumerate(val_indexes):
-                val_X_temp[(int(np.ceil(n*val_ratio)) * i) + j] = x_val[idx]
-                val_y_temp[(int(np.ceil(n*val_ratio)) * i) + j] = y_val[idx]
-            del x_val; del y_val
+            if n < len(x_train):
+                train_indexes = random.sample(range(0, len(x_train)), n)
 
-        os.makedirs(f'{dst}/{n}_shot_{y}')
+                for j, idx in enumerate(train_indexes):
+                    train_X_temp[(n*i)+j] = x_train[idx]
+                    train_y_temp[(n * i) + j] = y_train[idx]
+
+            else:
+                # resample if n > than regions number of samples
+                for j in range(0, len(x_train)):
+                    train_X_temp[(n * i)+j] = x_train[j]
+                    train_y_temp[(n * i)+j] = y_train[j]
+
+                train_indexes = random.choices(range(0, len(x_train)), k=(n - len(x_train)))
+                for j, idx in enumerate(train_indexes):
+                    train_X_temp[(n * i)+len(x_train)+j] = x_train[idx]
+                    train_y_temp[(n * i)+len(x_train) + j] = y_train[idx]
+
+            if int(np.ceil(n * val_ratio)) < len(x_val):
+
+                val_indexes = random.sample(range(0, len(x_val)), int(np.ceil(n * val_ratio)))
+
+                for j, idx in enumerate(val_indexes):
+                    val_X_temp[(int(np.ceil(n * val_ratio)) * i) + j] = x_val[idx]
+                    val_y_temp[(int(np.ceil(n * val_ratio)) * i) + j] = y_val[idx]
+
+            else:
+                # resample if n > than regions number of samples
+                for j in range(0, len(x_val)):
+                    val_X_temp[(int(np.ceil(n * val_ratio)))+j] = x_val[j]
+                    val_y_temp[(int(np.ceil(n * val_ratio)))+j] = y_val[j]
+
+                val_indexes = random.choices(range(0, len(x_val)), k=((int(np.ceil(n * val_ratio))) - len(x_val)))
+                for j, idx in enumerate(val_indexes):
+                    val_X_temp[(int(np.ceil(n * val_ratio)))+len(x_val)+j] = x_val[idx]
+                    val_y_temp[(int(np.ceil(n * val_ratio)))+len(x_val) + j] = y_val[idx]
+
+            del x_train; del y_train; del x_val; del y_val
+
+        os.makedirs(f'{dst}/{n}_shot_{y}', exist_ok=True)
         np.save(f'{dst}/{n}_shot_{y}/{n}shot_train_s2.npy', train_X_temp)
         np.save(f'{dst}/{n}_shot_{y}/{n}shot_train_label_{y}.npy', train_y_temp)
         np.save(f'{dst}/{n}_shot_{y}/{n}shot_val_s2.npy', val_X_temp)
@@ -245,7 +271,11 @@ def protocol_fewshot(folder: str,
 
 
 if __name__ == '__main__':
-    x_train, y_train, x_val, y_val = protocol_fewshot('/phileo_data/downstream/downstream_dataset_patches_np/',
-                                                      dst='/phileo_data/downstream/downstream_datasets_nshot/',
-                                                      n=1,
-                                                      y='roads')
+    label =['roads', 'building', 'lc']
+    n_shots = [1, 2, 5, 10, 50, 100, 150, 200, 500, 750, 1000]
+    for l in label:
+        for n in n_shots:
+            x_train, y_train, x_val, y_val = protocol_fewshot('/phileo_data/downstream/downstream_dataset_patches_np/',
+                                                              dst='/phileo_data/downstream/downstream_datasets_nshot/',
+                                                              n=n,
+                                                              y=l)
