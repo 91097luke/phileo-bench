@@ -12,10 +12,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 import numpy as np
+import json
 
 
 # utils
-import utils
+from utils import visualize
 
 
 class TrainBase():
@@ -24,6 +25,7 @@ class TrainBase():
                  test_loader: DataLoader, epochs:int = 50, early_stop:int=25, lr: float = 0.001, lr_scheduler: str = None, warmup:bool=True,
                  metrics: list = None, name: str="model", out_folder :str ="trained_models/", visualise_validation:bool=True, ):
 
+        self.last_epoch = None
         self.best_sd = None
         self.epochs = epochs
         self.early_stop = early_stop
@@ -39,6 +41,8 @@ class TrainBase():
         self.name = name
         self.out_folder = out_folder
         self.visualise_validation = visualise_validation
+        if visualise_validation:
+            os.makedirs(f'{self.out_folder}/val_images', exist_ok=True)
 
         self.scaler, self.optimizer = self.set_optimizer()
         self.criterion = self.set_criterion()
@@ -99,21 +103,16 @@ class TrainBase():
         return scheduler
 
     def get_loss(self, images, labels):
-        # Cast to bfloat16
-        with autocast(dtype=torch.float16):
-            outputs = self.model(images)
-
-            loss = self.criterion(outputs, labels)
-
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-
+        outputs = self.model(images)
+        loss = self.criterion(outputs, labels)
         return loss
 
-    def t_loop(self, train_pbar, s):
+    def t_loop(self, epoch, s):
         # Initialize the running loss
         train_loss = 0.0
+        # Initialize the progress bar for training
+        train_pbar = tqdm(self.train_loader, total=len(self.train_loader),
+                          desc=f"Epoch {epoch + 1}/{self.epochs}")
 
         # loop training through batches
         for i, (images, labels) in enumerate(train_pbar):
@@ -123,7 +122,12 @@ class TrainBase():
             # Zero the gradients
             self.optimizer.zero_grad()
             # get loss
-            loss = self.get_loss(images, labels)
+            with autocast(dtype=torch.float16):
+                loss = self.get_loss(images, labels)
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+
             train_loss += loss.item()
 
             # display progress on console
@@ -137,15 +141,20 @@ class TrainBase():
 
         return i, train_loss
 
-    def val_visualize(self, images, labels, outputs):
-        utils.visualize(x=images, y=labels, y_pred=outputs, images=5,
-                        channel_first=True, vmin=0, vmax=1, save_path=f"{self.out_folder}/val_images.png")
+    def val_visualize(self, images, labels, outputs, name):
+        visualize.visualize(x=images, y=labels, y_pred=outputs, images=5,
+                            channel_first=True, vmin=0, vmax=1, save_path=f"{self.out_folder}/{name}.png")
 
-    def v_loop(self):
+    def v_loop(self, epoch):
+
+        # Initialize the progress bar for training
+        val_pbar = tqdm(self.val_loader, total=len(self.val_loader),
+                          desc=f"Epoch {epoch + 1}/{self.epochs}")
+
         with torch.no_grad():
             self.model.eval()
             val_loss = 0
-            for j, (images, labels) in enumerate(self.val_loader):
+            for j, (images, labels) in enumerate(val_pbar):
                 # Move inputs and targets to the device (GPU)
                 images, labels = images.to(self.device), labels.to(self.device)
 
@@ -153,9 +162,14 @@ class TrainBase():
                 loss = self.get_loss(images, labels)
                 val_loss += loss.item()
 
+                # display progress on console
+                val_pbar.set_postfix({
+                    "val_loss": f"{val_loss / (j + 1):.4f}",
+                    f"lr": self.optimizer.param_groups[0]['lr']})
+
             if self.visualise_validation:
                 outputs = self.model(images)
-                self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(), outputs.detach().cpu().numpy())
+                self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(), outputs.detach().cpu().numpy(), name=f'/val_images/val_{epoch}')
 
             return j, val_loss
 
@@ -217,18 +231,8 @@ class TrainBase():
                 self.warmup = False
                 print('Warmup finished')
 
-            # Initialize the progress bar for training
-            train_pbar = tqdm(self.train_loader, total=len(self.train_loader),
-                              desc=f"Epoch {epoch + 1}/{self.epochs}")
-
-            i, train_loss = self.t_loop(train_pbar, s)
-            j, val_loss = self.v_loop()
-
-            # display progress on console
-            train_pbar.set_postfix({
-                "loss": f"{train_loss / (i + 1):.4f}",
-                "val_loss": f"{val_loss / (j + 1):.4f}",
-                f"lr": self.optimizer.param_groups[0]['lr']})
+            i, train_loss = self.t_loop(epoch, s)
+            j, val_loss = self.v_loop(epoch)
 
             self.tl.append(train_loss / (i + 1))
             self.vl.append(val_loss / (j + 1))
@@ -250,6 +254,7 @@ class TrainBase():
             # Early stopping
             if self.epochs_no_improve == self.early_stop:
                 print(f'Early stopping triggered after {epoch + 1} epochs.')
+                self.last_epoch = epoch + 1
                 break
 
     def test(self):
@@ -267,13 +272,88 @@ class TrainBase():
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
-                outputs = self.model(images)
-
-                loss = self.criterion(outputs, labels)
+                # get loss
+                loss = self.get_loss(images, labels)
                 test_loss += loss.item()
 
-            print(f"Test Loss: {test_loss / (k + 1):.4f}")
+            self.test_loss = test_loss / (k + 1)
+
+            print(f"Test Loss: {self.test_loss:.4f}")
+            outputs = self.model(images)
             self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(),
-                               outputs.detach().cpu().numpy())
+                               outputs.detach().cpu().numpy(), name='test')
+
+    def save_info(self):
+        artifacts = {'training_parameters': {'model': self.name,
+                                             'lr': self.learning_rate,
+                                             'scheduler': self.lr_scheduler,
+                                             'warm_up': self.warmup,
+                                             'optimizer': str(self.optimizer).split(' (')[0],
+                                             'device': self.device,
+                                             'training_epochs': self.epochs,
+                                             'early_stop': self.early_stop,
+                                             'train_samples': len(self.train_loader),
+                                             'val_samples': len(self.val_loader),
+                                             'test_samples': len(self.test_loss)
+                                             },
+
+                     'training_info': {'best_val_loss': self.best_loss,
+                                       'best_epoch': self.best_epoch,
+                                       'last_epoch': self.last_epoch,
+                                       'test_loss': self.test_loss},
+
+                     'plot_info': {'epochs': self.e,
+                                   'val_losses': self.vl,
+                                   'tran_losses': self.tl,
+                                   'lr': self.lr}
+                     }
+
+        with open(f"{self.out_folder}/artifacts.json", "w") as outfile:
+            json.dump(artifacts, outfile)
 
 
+class TrainLandCover(TrainBase):
+
+    def set_criterion(self):
+        return nn.CrossEntropyLoss()
+
+    def get_loss(self, images, labels):
+        outputs = self.model(images)
+        outputs = outputs.flatten(start_dim=2).squeeze()
+        labels = labels.flatten(start_dim=1).squeeze()
+        loss = self.criterion(outputs, labels)
+        return loss
+
+    def val_visualize(self, images, labels, outputs, name):
+        visualize.visualize_lc(x=images, y=labels, y_pred=outputs.argmax(axis=1), images=5,
+                               channel_first=True, vmin=0, save_path=f"{self.out_folder}/{name}.png")
+
+
+class TrainViT(TrainBase):
+    def get_loss(self, images, labels):
+        outputs = self.model(images)
+        labels = self.model.patchify(labels)
+        loss = self.criterion(outputs, labels)
+        return loss
+
+    def val_visualize(self, images, labels, outputs, name):
+        outputs = self.model.unpatchify(torch.from_numpy(outputs), c=labels.shape[1])
+        visualize.visualize(x=images, y=labels, y_pred=outputs.detach().cpu().numpy(), images=5,
+                               channel_first=True, vmin=0, save_path=f"{self.out_folder}/{name}.png")
+
+
+class TrainViTLandCover(TrainBase):
+
+    def set_criterion(self):
+        return nn.CrossEntropyLoss()
+
+    def get_loss(self, images, labels):
+        outputs = self.model.unpatchify(self.model(images), c=11).flatten(start_dim=2).squeeze()
+        labels = labels.flatten(start_dim=1).squeeze()
+        loss = self.criterion(outputs, labels)
+        return loss
+
+    def val_visualize(self, images, labels, outputs, name):
+        outputs = self.model.unpatchify(torch.from_numpy(outputs), c=11)
+        visualize.visualize_lc(x=images, y=labels, y_pred=outputs.detach().cpu().numpy().argmax(axis=1), images=5,
+                               channel_first=True, vmin=0, save_path=f"{self.out_folder}/{name}.png")

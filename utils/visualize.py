@@ -2,11 +2,15 @@ import random
 import time
 random.seed(time.time())
 
+import matplotlib
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import buteo as beo
 
 from utils.data_protocol import protocol_fewshot
+from utils import config_lc
+
 
 def render_s2_as_rgb(arr, channel_first=False):
     # If there are nodata values, lets cast them to zero.
@@ -37,7 +41,7 @@ def render_s2_as_rgb(arr, channel_first=False):
     return rgb_slice
 
 
-def visualise(x, y, y_pred=None, images=5, channel_first=False, vmin=0, vmax=1, save_path=None):
+def visualize(x, y, y_pred=None, images=5, channel_first=False, vmin=0, vmax=1, save_path=None):
     rows = images
     if y_pred is None:
         columns = 2
@@ -59,14 +63,14 @@ def visualise(x, y, y_pred=None, images=5, channel_first=False, vmin=0, vmax=1, 
 
         i = i + 1
         fig.add_subplot(rows, columns, i)
-        plt.imshow(y[idx], vmin=vmin, vmax=vmax, cmap='magma')
+        plt.imshow(np.squeeze(y[idx]), vmin=vmin, vmax=vmax, cmap='magma')
         plt.axis('on')
         plt.grid()
 
         if y_pred is not None:
             i = i + 1
             fig.add_subplot(rows, columns, i)
-            plt.imshow(y_pred[idx], vmin=vmin, vmax=vmax, cmap='magma')
+            plt.imshow(np.squeeze(y_pred[idx]), vmin=vmin, vmax=vmax, cmap='magma')
             plt.axis('on')
             plt.grid()
 
@@ -80,13 +84,62 @@ def visualise(x, y, y_pred=None, images=5, channel_first=False, vmin=0, vmax=1, 
         plt.savefig(save_path)
     plt.close()
 
-def main():
-    x_train, y_train, x_val, y_val = protocol_fewshot('/phileo_data/downstream/downstream_dataset_patches_np/',
-                                                      dst='/phileo_data/downstream/downstream_datasets_nshot/',
-                                                      n=1,
-                                                      y='roads')
 
-    visualise(x=x_train, y=y_train, y_pred=None, images=8, channel_first=False, vmin=0, vmax=1, save_path='/home/lcamilleri/git_repos/phileo-testbed/test/test.png')
+def visualize_lc(x, y, y_pred=None, images=5, channel_first=False, vmin=0,save_path=None):
+    lc_map_names = config_lc.lc_raw_classes
+    lc_map = config_lc.lc_model_map
+    lc_map_inverted = {v: k for k, v in zip(lc_map.keys(), lc_map.values())}
+    vmax = len(lc_map)
 
-if __name__ == '__main__':
-    main()
+    # d = 1 if channel_first else -1
+    # # y= y.argmax(axis=d)
+    # if y_pred is not None:
+    #     y_pred = y_pred.argmax(axis=d)
+    cmap = (matplotlib.colors.ListedColormap(config_lc.lc_color_map.values()))
+    norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
+
+    rows = images
+    if y_pred is None:
+        columns = 2
+    else:
+        columns = 3
+    i = 0
+    fig = plt.figure(figsize=(10 * columns, 10 * rows))
+
+    indexes = random.sample(range(0, x.shape[0]), images)
+    for idx in indexes:
+        arr = x[idx]
+        rgb_image = render_s2_as_rgb(arr, channel_first)
+
+        i = i + 1
+        fig.add_subplot(rows, columns, i)
+        plt.imshow(rgb_image)
+        plt.axis('on')
+        plt.grid()
+
+        i = i + 1
+        fig.add_subplot(rows, columns, i)
+        plt.imshow(np.squeeze(y[idx]), vmin=vmin, vmax=vmax, cmap=cmap)
+        patches = [mpatches.Patch(color=cmap(norm(u)), label=lc_map_names[lc_map_inverted[u]]) for u in np.unique(y[idx])]
+        plt.legend(handles=patches)
+        plt.axis('on')
+        plt.grid()
+
+        if y_pred is not None:
+            i = i + 1
+            fig.add_subplot(rows, columns, i)
+            plt.imshow(np.squeeze(y_pred[idx]), vmin=vmin, vmax=vmax, cmap=cmap)
+            patches = [mpatches.Patch(color=cmap(norm(u)), label=lc_map_names[lc_map_inverted[u]]) for u in np.unique(y_pred[idx])]
+            plt.legend(handles=patches)
+            plt.axis('on')
+            plt.grid()
+
+    fig.tight_layout()
+
+    del x
+    del y
+    del y_pred
+
+    if save_path is not None:
+        plt.savefig(save_path)
+    plt.close()
