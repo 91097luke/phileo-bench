@@ -80,12 +80,17 @@ if __name__ == "__main__":
         x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot('/phileo_data/downstream/downstream_dataset_patches_np/',
                                                                         dst='/phileo_data/downstream/downstream_datasets_nshot/',
                                                                         n=args.n_shot,
+                                                                        regions=args.regions,
                                                                         y=args.downstream_task)
 
     elif isinstance(args.split_ratio, float):
+        x_train, y_train, x_val, y_val = data_protocol.protocol_split('/phileo_data/downstream/downstream_dataset_patches_np/',
+                                                                      split_percentage=args.split_ratio,
+                                                                      regions=args.regions,
+                                                                      y=args.downstream_task)
 
-        x_test, y_test = data_protocol.get_testset(folder='/phileo_data/downstream/downstream_dataset_patches_np/',
-                                                   y=args.downstream_task)
+    x_test, y_test = data_protocol.get_testset(folder='/phileo_data/downstream/downstream_dataset_patches_np/',
+                                               y=args.downstream_task)
 
     dl_train, dl_test, dl_val = load_data.load_data(x_train, y_train, x_val, y_val, x_test, y_test,
                                                     with_augmentations=args.augmentations,
