@@ -38,7 +38,10 @@ def get_args():
     parser.add_argument('--vis_val', type=bool, default=True, help='enable saving of intermediate visualization plots')
     parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc'], required=True,
                         help='select downstream task')
-    parser.add_argument('--regions', type=list, default=None, help='select regions to be included')
+    parser.add_argument('--regions', type=list, default=None, help='select regions to be included',
+                        choices=[None, 'denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
+                                 'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
+                                 'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1'])
     parser.add_argument('--n_shot', type=int, default=None,
                         help='Loads n-samples of data from specified geographic regions')
     parser.add_argument('--split_ratio', type=float, default=None,
