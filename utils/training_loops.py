@@ -14,7 +14,6 @@ from torch.cuda.amp import GradScaler, autocast
 import numpy as np
 import json
 
-
 # utils
 from utils import visualize
 
