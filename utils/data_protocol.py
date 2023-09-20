@@ -168,7 +168,7 @@ def protocol_fewshot(folder: str,
                      ):
 
     """
-    Loads a n-samples data from specified geographic regions.
+    Loads n-samples data from specified geographic regions.
     :param folder: dataset source folder
     :param dst: save folder
     :param n: number of samples

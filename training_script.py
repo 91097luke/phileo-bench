@@ -21,22 +21,29 @@ from utils import training_loops
 
 def get_args():
     parser = argparse.ArgumentParser(description='Experiment TestBed for Phi-Leo Foundation Model Project')
-    parser.add_argument('--experiment_name', type=str, default=f'experiment_{date.today().strftime("%d%m%Y")}')
-    parser.add_argument('--model', type=str, choices=['CoreUNET', 'LinearViT', 'AutoEncoderViT'], required=True)
-    parser.add_argument('--lr', type=float, default=0.001)
-    parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--epochs', type=int, default=250)
-    parser.add_argument('--early_stop', type=int, default=50)
-    parser.add_argument('--lr_scheduler', type=str, default=None, choices=[None, 'reduce_on_plateau', 'cosine_annealing'])
-    parser.add_argument('--warmup', type=str, default=False)
-    parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
-    parser.add_argument('--num_workers', type=int, default=0)
-    parser.add_argument('--vis_val', type=bool, default=True)
-    parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc'], required=True)
-    parser.add_argument('--regions', type=list, default=None)
-    parser.add_argument('--n_shot', type=int, default=None)
-    parser.add_argument('--split_ratio', type=float, default=None)
-    parser.add_argument('--augmentations', type=bool, default=False)
+    parser.add_argument('--experiment_name', type=str, default=f'experiment_{date.today().strftime("%d%m%Y")}',
+                        help='Experiment folder name')
+    parser.add_argument('--model', type=str, choices=['CoreUNET', 'LinearViT', 'AutoEncoderViT'], required=True,
+                        help='Select appropriate model')
+    parser.add_argument('--lr', type=float, default=0.001, help='Set learning rate')
+    parser.add_argument('--batch_size', type=int, default=64, help='Set batch size')
+    parser.add_argument('--epochs', type=int, default=250, help='Set training epochs')
+    parser.add_argument('--early_stop', type=int, default=50, help='set training loop patience for early stopping')
+    parser.add_argument('--lr_scheduler', type=str, default=None,
+                        choices=[None, 'reduce_on_plateau', 'cosine_annealing'], help='select learning rate scheduler')
+    parser.add_argument('--warmup', type=str, default=False, help='Enables linear 5 epoch warmup scheduler')
+    parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+                        help='select training device')
+    parser.add_argument('--num_workers', type=int, default=0, help='set number of workers')
+    parser.add_argument('--vis_val', type=bool, default=True, help='enable saving of intermediate visualization plots')
+    parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc'], required=True,
+                        help='select downstream task')
+    parser.add_argument('--regions', type=list, default=None, help='select regions to be included')
+    parser.add_argument('--n_shot', type=int, default=None,
+                        help='Loads n-samples of data from specified geographic regions')
+    parser.add_argument('--split_ratio', type=float, default=None,
+                        help='Loads a percentage of the data from specified geographic regions.')
+    parser.add_argument('--augmentations', type=bool, default=False, help='enables augmentations')
     return parser
 
 
@@ -89,13 +96,34 @@ if __name__ == "__main__":
                                                     device=args.device
                                                     )
 
-    obj = training_loops.TrainViTLandCover(epochs=args.epochs, lr=args.lr, model=model, device=args.device,
-                                           lr_scheduler=args.lr_scheduler, train_loader=dl_train,
-                                           val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                           out_folder=OUTPUT_FOLDER,)
+    if args.model == 'CoreCNN' :
+        if args.downstream_task == 'roads' or args.downstream_task == 'roads':
+            trainer = training_loops.TrainBase(epochs=args.epochs, lr=args.lr, model=model, device=args.device,
+                                               lr_scheduler=args.lr_scheduler, train_loader=dl_train,
+                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                               out_folder=OUTPUT_FOLDER,)
+        elif args.downstream_task == 'lc':
+            trainer = training_loops.TrainLandCover(epochs=args.epochs, lr=args.lr, model=model, device=args.device,
+                                                       lr_scheduler=args.lr_scheduler, train_loader=dl_train,
+                                                       val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                       out_folder=OUTPUT_FOLDER,)
 
-    obj.train()
-    obj.test()
-    obj.save_info()
+    elif args.model == 'LinearViT' or   args.model == 'AuroEncoderViT':
+        if args.downstream_task == 'roads' or args.downstream_task == 'roads':
+            trainer = training_loops.TrainViT(epochs=args.epochs, lr=args.lr, model=model, device=args.device,
+                                              lr_scheduler=args.lr_scheduler, train_loader=dl_train,
+                                              val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                              out_folder=OUTPUT_FOLDER,)
+
+        elif args.downstream_task == 'lc':
+            trainer = training_loops.TrainViTLandCover(epochs=args.epochs, lr=args.lr, model=model, device=args.device,
+                                                       lr_scheduler=args.lr_scheduler, train_loader=dl_train,
+                                                       val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                       out_folder=OUTPUT_FOLDER,)
+
+
+    trainer.train()
+    trainer.test()
+    trainer.save_info()
 
 
