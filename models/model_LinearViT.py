@@ -19,8 +19,7 @@ from utils.transformer_utils import get_2d_sincos_pos_embed
 class LinearViT(nn.Module):
     def __init__(self, chw:tuple=(10, 128, 128), patch_size:int=4, out_chans:int=10,
                  embed_dim=768, depth=12, num_heads=16,
-                 decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm):
         super().__init__()
 
         # Attributes
@@ -139,3 +138,34 @@ class LinearViT(nn.Module):
         # remove cls token
         x = x[:, 1:, :]
         return x
+
+if __name__ == "__main__":
+    from torchinfo import summary
+    from torch.utils import bottleneck
+
+    BATCH_SIZE = 16
+    CHANNELS = 10
+    HEIGHT = 64
+    WIDTH = 64
+
+    # torch.set_default_device("cuda")
+
+    model = LinearViT(
+        chw=(10, 64, 64),
+        out_chans=1,
+        # embedding_dims=[32, 32],
+        # patch_sizes=[16, 8],
+        # embedding_dims=32,
+        # expansion=2,
+        # drop_n=0.0,
+        # drop_p=0.0,
+    )
+
+    # model(torch.randn((BATCH_SIZE, CHANNELS, HEIGHT, WIDTH)))
+
+    t = summary(
+        model,
+        input_size=(BATCH_SIZE, CHANNELS, HEIGHT, WIDTH),
+    )
+
+

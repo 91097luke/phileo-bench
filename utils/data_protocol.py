@@ -165,6 +165,7 @@ def protocol_fewshot(folder: str,
                      val_ratio: float = 0.2,
                      regions: list = None,
                      y: str = 'building',
+                     resample: bool = False,
                      ):
 
     """
@@ -236,10 +237,11 @@ def protocol_fewshot(folder: str,
                     train_X_temp[(n * i)+j] = x_train[j]
                     train_y_temp[(n * i)+j] = y_train[j]
 
-                train_indexes = random.choices(range(0, len(x_train)), k=(n - len(x_train)))
-                for j, idx in enumerate(train_indexes):
-                    train_X_temp[(n * i)+len(x_train)+j] = x_train[idx]
-                    train_y_temp[(n * i)+len(x_train) + j] = y_train[idx]
+                if resample:
+                    train_indexes = random.choices(range(0, len(x_train)), k=(n - len(x_train)))
+                    for j, idx in enumerate(train_indexes):
+                        train_X_temp[(n * i)+len(x_train)+j] = x_train[idx]
+                        train_y_temp[(n * i)+len(x_train) + j] = y_train[idx]
 
             if int(np.ceil(n * val_ratio)) < len(x_val):
 
@@ -255,10 +257,11 @@ def protocol_fewshot(folder: str,
                     val_X_temp[(int(np.ceil(n * val_ratio)))+j] = x_val[j]
                     val_y_temp[(int(np.ceil(n * val_ratio)))+j] = y_val[j]
 
-                val_indexes = random.choices(range(0, len(x_val)), k=((int(np.ceil(n * val_ratio))) - len(x_val)))
-                for j, idx in enumerate(val_indexes):
-                    val_X_temp[(int(np.ceil(n * val_ratio)))+len(x_val)+j] = x_val[idx]
-                    val_y_temp[(int(np.ceil(n * val_ratio)))+len(x_val) + j] = y_val[idx]
+                if resample:
+                    val_indexes = random.choices(range(0, len(x_val)), k=((int(np.ceil(n * val_ratio))) - len(x_val)))
+                    for j, idx in enumerate(val_indexes):
+                        val_X_temp[(int(np.ceil(n * val_ratio)))+len(x_val)+j] = x_val[idx]
+                        val_y_temp[(int(np.ceil(n * val_ratio)))+len(x_val) + j] = y_val[idx]
 
             del x_train; del y_train; del x_val; del y_val
 

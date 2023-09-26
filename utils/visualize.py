@@ -42,6 +42,9 @@ def render_s2_as_rgb(arr, channel_first=False):
 
 
 def visualize(x, y, y_pred=None, images=5, channel_first=False, vmin=0, vmax=1, save_path=None):
+    if images > x.shape[0]:
+        images = x.shape[0]
+
     rows = images
     if y_pred is None:
         columns = 2

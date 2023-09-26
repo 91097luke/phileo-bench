@@ -18,12 +18,14 @@ import json
 from utils import visualize
 
 
+
 class TrainBase():
 
     def __init__(self, model: nn.Module, device: torch.device, train_loader: DataLoader, val_loader: DataLoader,
                  test_loader: DataLoader, epochs:int = 50, early_stop:int=25, lr: float = 0.001, lr_scheduler: str = None, warmup:bool=True,
                  metrics: list = None, name: str="model", out_folder :str ="trained_models/", visualise_validation:bool=True, ):
 
+        self.test_loss = None
         self.last_epoch = None
         self.best_sd = None
         self.epochs = epochs
@@ -70,6 +72,8 @@ class TrainBase():
         self.vl = []
         self.e = []
         self.lr = []
+
+
 
     def set_optimizer(self):
         optimizer = torch.optim.AdamW(self.model.parameters(),
@@ -136,7 +140,7 @@ class TrainBase():
 
             # # Update the scheduler
             if self.lr_scheduler == 'cosine_annealing':
-                self.s.step()
+                s.step()
 
         return i, train_loss
 
@@ -219,13 +223,14 @@ class TrainBase():
 
         # create dst folder for generated files/artifacts
         os.makedirs(self.out_folder, exist_ok=True)
+        s = None
 
         # Training loop
         for epoch in range(self.epochs):
             if epoch == 0 and self.warmup == True:
                 s = self.scheduler_warmup
                 print('Starting linear warmup phase')
-            elif epoch == 5:
+            elif epoch == 5 and self.warmup == True:
                 s = self.scheduler
                 self.warmup = False
                 print('Warmup finished')
@@ -264,10 +269,12 @@ class TrainBase():
         print("")
         print("Starting Testing...")
         self.model.eval()
+        test_pbar = tqdm(self.test_loader, total=len(self.test_loader),
+                          desc=f"Test Set")
         with torch.no_grad():
 
             test_loss = 0
-            for k, (images, labels) in enumerate(self.test_loader):
+            for k, (images, labels) in enumerate(test_pbar):
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
@@ -282,18 +289,20 @@ class TrainBase():
             self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(),
                                outputs.detach().cpu().numpy(), name='test')
 
-    def save_info(self):
+    def save_info(self, model_summary=None, n_shot=None, p_split=None, warmup=None, lr=None):
         artifacts = {'training_parameters': {'model': self.name,
-                                             'lr': self.learning_rate,
+                                             'lr': lr,
                                              'scheduler': self.lr_scheduler,
-                                             'warm_up': self.warmup,
+                                             'warm_up': warmup,
                                              'optimizer': str(self.optimizer).split(' (')[0],
-                                             'device': self.device,
+                                             'device': str(self.device),
                                              'training_epochs': self.epochs,
                                              'early_stop': self.early_stop,
-                                             'train_samples': len(self.train_loader),
-                                             'val_samples': len(self.val_loader),
-                                             'test_samples': len(self.test_loss)
+                                             'train_samples': len(self.train_loader) * model_summary.input_size[0][0],
+                                             'val_samples': len(self.val_loader) * model_summary.input_size[0][0],
+                                             'test_samples': len(self.test_loader) * model_summary.input_size[0][0],
+                                             'n_shot': n_shot,
+                                             'p_split': p_split
                                              },
 
                      'training_info': {'best_val_loss': self.best_loss,
@@ -303,8 +312,17 @@ class TrainBase():
 
                      'plot_info': {'epochs': self.e,
                                    'val_losses': self.vl,
-                                   'tran_losses': self.tl,
-                                   'lr': self.lr}
+                                   'train_losses': self.tl,
+                                   'lr': self.lr},
+
+                     'model_summary': {'batch_size': model_summary.input_size[0],
+                                       'input_size': model_summary.total_input,
+                                       'total_mult_adds': model_summary.total_mult_adds,
+                                       'back_forward_pass_size': model_summary.total_output_bytes,
+                                       'param_bytes': model_summary.total_param_bytes,
+                                       'trainable_params': model_summary.trainable_params,
+                                       'non-trainable_params': model_summary.total_params - model_summary.trainable_params,
+                                       'total_params': model_summary.total_params}
                      }
 
         with open(f"{self.out_folder}/artifacts.json", "w") as outfile:

@@ -1,4 +1,4 @@
-name: Phileo-downstream-tasks
+name: phileo-test-bed
 channels:
   - conda-forge
   - defaults
