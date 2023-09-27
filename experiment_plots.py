@@ -17,13 +17,10 @@ def get_args():
     parser.add_argument('--x_logscale', type=bool, required=False, default=False)
 
 
-if __name__ == '__main__':
-    parser = get_args()
-    args = parser.parse_args()
-
+def main(folder, plot_title, y_logscale, x_logscale):
     y = []
     x = []
-    artifcat_files = glob.glob(f"{args.folder}/*/*.json")
+    artifcat_files = glob.glob(f"{folder}/*/*.json")
 
     for file in artifcat_files:
         f = open(file)
@@ -45,3 +42,10 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(args.folder, f"test_losses.png"))
 
     plt.close('all')
+
+if __name__ == '__main__':
+    parser = get_args()
+    args = parser.parse_args()
+    main(**vars(args))
+
+
