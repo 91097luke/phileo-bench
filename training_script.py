@@ -97,7 +97,7 @@ def get_args():
                         help='Loads n-samples of data from specified geographic regions')
     parser.add_argument('--split_ratio', type=float, default=None,
                         help='Loads a percentage of the data from specified geographic regions.')
-    parser.add_argument('--augmentations', action="store_false", help='enables augmentations')
+    parser.add_argument('--augmentations', action="store_true", help='enables augmentations')
     return parser
 
 def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
