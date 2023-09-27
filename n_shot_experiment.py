@@ -11,7 +11,7 @@ args = vars(parser.parse_args())
 
 model_name = args['model_name']
 downstream_task = args['downstream_task']
-experiment_name = f'trained_models/{date.today().strftime("%d%m%Y")}_{model_name}_{downstream_task}_p_split'
+experiment_name = f'{date.today().strftime("%d%m%Y")}_{model_name}_{downstream_task}_p_split'
 
 for n_shot in N_SHOTS:
     args['n_shot'] = n_shot
