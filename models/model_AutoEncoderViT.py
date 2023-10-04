@@ -20,7 +20,7 @@ class AutoencoderViT(nn.Module):
     """ Autoencoder with VisionTransformer backbone
     """
 
-    def __init__(self, chw:tuple=(10, 128, 128), patch_size:int=4, out_chans:int=10,
+    def __init__(self, chw:tuple=(10, 128, 128), patch_size:int=8, out_chans:int=10,
                  embed_dim=768, depth=12, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,):

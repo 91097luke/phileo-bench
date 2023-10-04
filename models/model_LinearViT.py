@@ -17,7 +17,7 @@ from utils.transformer_utils import get_2d_sincos_pos_embed
 
 
 class LinearViT(nn.Module):
-    def __init__(self, chw:tuple=(10, 128, 128), patch_size:int=4, out_chans:int=10,
+    def __init__(self, chw:tuple=(10, 128, 128), patch_size:int=8, out_chans:int=10,
                  embed_dim=768, depth=12, num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm):
         super().__init__()

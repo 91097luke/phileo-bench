@@ -27,6 +27,41 @@ VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
 
 MODEL_LIST = CNN_LIST + MIXER_LIST + VIT_LIST
 
+def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
+                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val):
+
+    if model_name in (CNN_LIST + MIXER_LIST):
+        if downstream_task == 'roads' or downstream_task == 'building':
+            trainer = training_loops.TrainBase(epochs=epochs, lr=lr, model=model, device=device,
+                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                               train_loader=dl_train,
+                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+        elif downstream_task == 'lc':
+            trainer = training_loops.TrainLandCover(epochs=epochs, lr=lr, model=model, device=device,
+                                                    lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                                    train_loader=dl_train,
+                                                    val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+
+    elif model_name in VIT_LIST:
+        if downstream_task == 'roads' or downstream_task == 'building':
+            trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
+                                              lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
+                                              val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+        elif downstream_task == 'lc':
+            trainer = training_loops.TrainViTLandCover(epochs=epochs, lr=lr, model=model, device=device,
+                                                       lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                                       train_loader=dl_train,
+                                                       val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+
+    return trainer
+
 
 def get_models(model_name, input_channels, output_channels, input_size):
     if model_name == 'baseline_cnn':
@@ -161,33 +196,8 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     model_summary = summary(model,
                             input_size=(batch_size, input_channels, input_size, input_size), )
 
-    if model_name in (CNN_LIST + MIXER_LIST):
-        if downstream_task == 'roads' or downstream_task == 'roads':
-            trainer = training_loops.TrainBase(epochs=epochs, lr=lr, model=model, device=device,
-                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
-                                               train_loader=dl_train,
-                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-        elif downstream_task == 'lc':
-            trainer = training_loops.TrainLandCover(epochs=epochs, lr=lr, model=model, device=device,
-                                                    lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
-                                                    train_loader=dl_train,
-                                                    val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-
-    elif model_name in VIT_LIST:
-        if downstream_task == 'roads' or downstream_task == 'roads':
-            trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
-                                              lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
-                                              val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-
-        elif downstream_task == 'lc':
-            trainer = training_loops.TrainViTLandCover(epochs=epochs, lr=lr, model=model, device=device,
-                                                       lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
-                                                       train_loader=dl_train,
-                                                       val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+    trainer = get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
+                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val)
 
     trainer.train()
     trainer.test()
