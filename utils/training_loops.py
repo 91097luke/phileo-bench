@@ -1,5 +1,7 @@
 # Standard Library
 import os
+import time
+
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 import matplotlib
@@ -13,6 +15,7 @@ from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 import numpy as np
 import json
+from pytorch_metric_learning import losses
 
 # utils
 from utils import visualize
@@ -25,6 +28,7 @@ class TrainBase():
                  test_loader: DataLoader, epochs:int = 50, early_stop:int=25, lr: float = 0.001, lr_scheduler: str = None, warmup:bool=True,
                  metrics: list = None, name: str="model", out_folder :str ="trained_models/", visualise_validation:bool=True, ):
 
+        self.loss_optimizer = None
         self.test_loss = None
         self.last_epoch = None
         self.best_sd = None
@@ -108,14 +112,19 @@ class TrainBase():
     def get_loss(self, images, labels):
         outputs = self.model(images)
         loss = self.criterion(outputs, labels)
-        return loss
+        return loss, outputs
 
     def t_loop(self, epoch, s):
         # Initialize the running loss
         train_loss = 0.0
+        self.model.train()
         # Initialize the progress bar for training
         train_pbar = tqdm(self.train_loader, total=len(self.train_loader),
                           desc=f"Epoch {epoch + 1}/{self.epochs}")
+
+        t_images = []
+        t_outputs = []
+        t_labels = []
 
         # loop training through batches
         for i, (images, labels) in enumerate(train_pbar):
@@ -126,10 +135,14 @@ class TrainBase():
             self.optimizer.zero_grad()
             # get loss
             with autocast(dtype=torch.float16):
-                loss = self.get_loss(images, labels)
+                loss, outputs = self.get_loss(images, labels)
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+
+                if self.loss_optimizer:
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
 
             train_loss += loss.item()
 
@@ -141,6 +154,25 @@ class TrainBase():
             # # Update the scheduler
             if self.lr_scheduler == 'cosine_annealing':
                 s.step()
+
+            if self.visualise_validation:
+                t_images.append(images[0].detach().cpu())
+                t_outputs.append(outputs[0].detach().cpu())
+                t_labels.append(labels[0].detach().cpu())
+
+            if self.visualise_validation and (i % 10000) == 0 and i != 0:
+                t_images = torch.stack(t_images)
+                t_outputs = torch.stack(t_outputs)
+                t_labels = torch.stack(t_labels)
+                self.val_visualize(t_images.detach().cpu().numpy(), t_labels.detach().cpu().numpy(),
+                                   t_outputs.detach().cpu().numpy(), name=f'/val_images/train_{i}')
+
+                t_images = []
+                t_outputs = []
+                t_labels = []
+
+                torch.cuda.empty_cache()
+                torch.save(self.model.state_dict(), os.path.join(self.out_folder, f"{self.name}_ckpt.pt"))
 
         return i, train_loss
 
@@ -157,12 +189,15 @@ class TrainBase():
         with torch.no_grad():
             self.model.eval()
             val_loss = 0
+            val_images = []
+            val_outputs = []
+            val_labels = []
             for j, (images, labels) in enumerate(val_pbar):
                 # Move inputs and targets to the device (GPU)
                 images, labels = images.to(self.device), labels.to(self.device)
 
                 # get loss
-                loss = self.get_loss(images, labels)
+                loss, outputs = self.get_loss(images, labels)
                 val_loss += loss.item()
 
                 # display progress on console
@@ -170,9 +205,17 @@ class TrainBase():
                     "val_loss": f"{val_loss / (j + 1):.4f}",
                     f"lr": self.optimizer.param_groups[0]['lr']})
 
+                if self.visualise_validation:
+                    val_images.append(images[0].detach().cpu())
+                    val_outputs.append(outputs[0].detach().cpu())
+                    val_labels.append(labels[0].detach().cpu())
+
             if self.visualise_validation:
-                outputs = self.model(images)
-                self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(), outputs.detach().cpu().numpy(), name=f'/val_images/val_{epoch}')
+                val_images = torch.stack(val_images)
+                val_outputs = torch.stack(val_outputs)
+                val_labels = torch.stack(val_labels)
+                self.val_visualize(val_images.detach().cpu().numpy(), val_labels.detach().cpu().numpy(),
+                                   val_outputs.detach().cpu().numpy(), name=f'/val_images/val_{epoch}')
 
             return j, val_loss
 
@@ -230,10 +273,13 @@ class TrainBase():
             if epoch == 0 and self.warmup == True:
                 s = self.scheduler_warmup
                 print('Starting linear warmup phase')
+            elif epoch == 0 and self.warmup == False:
+                s = self.scheduler
             elif epoch == 5 and self.warmup == True:
                 s = self.scheduler
                 self.warmup = False
                 print('Warmup finished')
+
 
             i, train_loss = self.t_loop(epoch, s)
             j, val_loss = self.v_loop(epoch)
@@ -279,13 +325,13 @@ class TrainBase():
                 labels = labels.to(self.device)
 
                 # get loss
-                loss = self.get_loss(images, labels)
+                loss, outputs = self.get_loss(images, labels)
                 test_loss += loss.item()
 
             self.test_loss = test_loss / (k + 1)
 
             print(f"Test Loss: {self.test_loss:.4f}")
-            outputs = self.model(images)
+            # outputs = self.model(images)
             self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(),
                                outputs.detach().cpu().numpy(), name='test')
 
@@ -339,7 +385,7 @@ class TrainLandCover(TrainBase):
         outputs = outputs.flatten(start_dim=2).squeeze()
         labels = labels.flatten(start_dim=1).squeeze()
         loss = self.criterion(outputs, labels)
-        return loss
+        return loss, outputs
 
     def val_visualize(self, images, labels, outputs, name):
         visualize.visualize_lc(x=images, y=labels, y_pred=outputs.argmax(axis=1), images=5,
@@ -351,7 +397,7 @@ class TrainViT(TrainBase):
         outputs = self.model(images)
         labels = self.model.patchify(labels)
         loss = self.criterion(outputs, labels)
-        return loss
+        return loss, outputs
 
     def val_visualize(self, images, labels, outputs, name):
         outputs = self.model.unpatchify(torch.from_numpy(outputs), c=labels.shape[1])
@@ -368,9 +414,95 @@ class TrainViTLandCover(TrainBase):
         outputs = self.model.unpatchify(self.model(images), c=11).flatten(start_dim=2).squeeze()
         labels = labels.flatten(start_dim=1).squeeze()
         loss = self.criterion(outputs, labels)
-        return loss
+        return loss, outputs
 
     def val_visualize(self, images, labels, outputs, name):
         outputs = self.model.unpatchify(torch.from_numpy(outputs), c=11)
         visualize.visualize_lc(x=images, y=labels, y_pred=outputs.detach().cpu().numpy().argmax(axis=1), images=5,
                                channel_first=True, vmin=0, save_path=f"{self.out_folder}/{name}.png")
+
+
+class TrainKG(TrainBase):
+    def __init__(self, *args, num_classes=31, embedding_size=2048, **kwargs): #2048 512
+        self.num_classes = num_classes
+        self.embedding_size = embedding_size
+        super(TrainKG, self).__init__(*args, **kwargs)
+        self.loss_optimizer = self.set_optimizer()
+
+    def set_criterion(self):
+        return losses.ArcFaceLoss(num_classes=self.num_classes, embedding_size=self.embedding_size, margin=28.6, scale=64).to(self.device)
+
+    def get_encoded_labels(self, labels):
+        climate_zone_labels, _ = torch.mode(labels.flatten(start_dim=1), -1)
+        return climate_zone_labels.long()
+
+    def get_loss(self, images, labels):
+        outputs = self.model(images)
+        labels = self.get_encoded_labels(labels)
+        loss = self.criterion(outputs, labels)
+        return loss, outputs
+
+    def val_visualize(self, images, labels, outputs, name):
+        labels = self.get_encoded_labels(torch.from_numpy(labels))
+        visualize.visualize_arcface(x=outputs, y=labels.detach().cpu().numpy(), save_path=f"{self.out_folder}/{name}.png")
+
+
+class TrainContrastive(TrainBase):
+    def __init__(self, *args, num_classes=31, embedding_size=2048, **kwargs): #2048 512
+        self.num_classes = num_classes
+        self.embedding_size = embedding_size
+        super(TrainContrastive, self).__init__(*args, **kwargs)
+        self.loss_optimizer = self.set_optimizer()
+
+    def kg_similarity(self, kg):
+        return torch.mm(kg, kg.transpose(0, 1)) # max_sim = 0, max_dissim = 1
+
+    def coords_similarity(self, coords):
+        lat_enc, long_sin, long_cos = coords[:, 0], (2 * coords[:, 1] - 1), (2 * coords[:, 2] - 1)
+        lat_r = lat_enc * np.pi
+
+        cos_dif = torch.outer(long_cos, long_cos) + torch.outer(long_sin, long_sin)
+
+        return torch.outer(torch.sin(lat_r), torch.sin(lat_r)) * cos_dif + torch.outer(torch.cos(lat_r),
+                                                                                       torch.cos(lat_r))
+    def date_similarity(self, date):
+        sin, cos = (2 * date[:, 0] - 1), (2 * date[:, 1] - 1)
+        return torch.outer(cos, cos) + torch.outer(sin, sin)
+
+    def get_similarity_labels(self, labels):
+
+        kg_label = labels[:, :31]
+        co_ordinate_labels = labels[:, 31:34]
+        date_lables = labels[:, 34:]
+
+        kg_similarity = self.kg_similarity(kg_label)
+        coords_similarity = self.coords_similarity(co_ordinate_labels)
+        date_similarity = self.date_similarity(date_lables)
+
+        return (kg_similarity + coords_similarity + date_similarity) / 3
+
+
+    def contrastive_criterion(self, embeddings, y, margin = 0.05):
+        embeddings_similarity = torch.mm(embeddings, embeddings.transpose(0, 1)) # embeddings are already normalized in the model
+
+        loss = torch.maximum(torch.zeros(y.shape), torch.square(y - embeddings_similarity) - margin ** 2)
+        loss = torch.triu(loss, diagonal=1)
+
+        return loss.sum() / embeddings.shape[0]
+
+    def get_loss(self, images, labels):
+        outputs = self.model(images)
+        y = self.get_similarity_labels(labels)
+        loss = self.contrastive_criterion(outputs, y)
+        return loss, outputs
+
+    def v_loop(self, epoch):
+        return 0, 0
+
+    def val_visualize(self, images, labels, outputs, name):
+        outputs = torch.from_numpy(outputs)
+        visualize.visualise_contrastive(y=labels, images=images,
+                                        est_sim=self.get_similarity_labels(torch.from_numpy(labels)).detach().cpu().numpy(),
+                                        pred_sim=torch.mm(outputs, outputs.transpose(0, 1)).detach().cpu().numpy(),
+                                        save_path=f"{self.out_folder}/{name}.png")
+

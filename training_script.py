@@ -1,7 +1,7 @@
 import os
 
 import torch
-from functools import partial
+import numpy
 from torchinfo import summary
 
 
@@ -15,17 +15,66 @@ from models.model_CoreCNN_versions import CoreUnet_base, CoreUnet_large, CoreUne
 from models.model_Mixer_versions import Mixer_base, Mixer_large, Mixer_huge
 from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, LinearViT_huge
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
+from models.model_Resnet import Resnet50, Resnet18
 
 from utils import data_protocol
 from utils import load_data
 from utils import training_loops
 
-CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge']
+CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge', 'resnet50', 'resnet18']
 MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge']
 
 MODEL_LIST = CNN_LIST + MIXER_LIST + VIT_LIST
+
+def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
+                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val):
+
+    if model_name in (CNN_LIST + MIXER_LIST):
+        if downstream_task == 'roads' or downstream_task == 'roads':
+            trainer = training_loops.TrainBase(epochs=epochs, lr=lr, model=model, device=device,
+                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                               train_loader=dl_train,
+                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+        elif downstream_task == 'lc':
+            trainer = training_loops.TrainLandCover(epochs=epochs, lr=lr, model=model, device=device,
+                                                    lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                                    train_loader=dl_train,
+                                                    val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+        elif downstream_task == 'kg':
+            trainer = training_loops.TrainKG(epochs=epochs, lr=lr, model=model, device=device,
+                                             lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                             train_loader=dl_train,
+                                             val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                             out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+        elif downstream_task == 'geo':
+            trainer = training_loops.TrainContrastive(epochs=epochs, lr=lr, model=model, device=device,
+                                             lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                             train_loader=dl_train,
+                                             val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                             out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+    elif model_name in VIT_LIST:
+        if downstream_task == 'roads' or downstream_task == 'roads':
+            trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
+                                              lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
+                                              val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+        elif downstream_task == 'lc':
+            trainer = training_loops.TrainViTLandCover(epochs=epochs, lr=lr, model=model, device=device,
+                                                       lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                                       train_loader=dl_train,
+                                                       val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+
+    return trainer
 
 
 def get_models(model_name, input_channels, output_channels, input_size):
@@ -64,6 +113,10 @@ def get_models(model_name, input_channels, output_channels, input_size):
     elif model_name == 'autoencoder_vit_huge':
         return AutoencoderViT_huge(chw=(input_channels, input_size, input_size),
                                    output_dim=output_channels)
+    elif model_name == 'resnet50':
+        return Resnet50(in_channels=input_channels)
+    elif model_name == 'resnet18':
+        return Resnet18(in_channels=input_channels)
 
 
 def get_args():
@@ -83,7 +136,7 @@ def get_args():
                         help='select training device')
     parser.add_argument('--num_workers', type=int, default=0, help='set number of workers')
     parser.add_argument('--vis_val', action="store_true", help='enable saving of intermediate visualization plots')
-    parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc'], required=True,
+    parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc', 'kg', 'geo'], required=True,
                         help='select downstream task')
     parser.add_argument('--input_channels', type=int, required=False, default=10, help='Define Number of input channels')
     parser.add_argument('--input_size', type=int, required=True, default=128, help='Define input size')
@@ -100,12 +153,13 @@ def get_args():
     parser.add_argument('--augmentations', action="store_true", help='enables augmentations')
     return parser
 
-def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-         early_stop:int=25, epochs:int=250, input_channels:int=10, input_size:int=128, lr:float=0.001, lr_scheduler:str=None,
-         n_shot:int=None, num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val=True, warmup=False):
-
+def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16,
+         device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), early_stop:int=25, epochs:int=250,
+         input_channels:int=10, input_size:int=128, lr:float=0.001, lr_scheduler:str=None, n_shot:int=None,
+         num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val=True, warmup=False):
 
     init_lr = lr
+    lc = False
 
     assert not (n_shot == None) or not (split_ratio == None), 'Please define data partition protocol!'
     assert isinstance(n_shot, int) ^ isinstance(split_ratio, float), 'n_shot cannot be used with split_ratio!'
@@ -115,8 +169,6 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
     if (downstream_task == 'roads') or (downstream_task == 'building'):
         assert output_channels == 1, 'regression type tasks should have a single output channel'
-        lc = False
-
 
 
     model = get_models(model_name, input_channels, output_channels, input_size)
@@ -129,65 +181,46 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     if warmup:
         lr = lr / 100000  # for warmup start
 
-    if isinstance(n_shot, int):
-        OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{n_shot}'
-        x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot(
-            '/phileo_data/downstream/downstream_dataset_patches_np/',
-            dst='/phileo_data/downstream/downstream_datasets_nshot/',
-            n=n_shot,
-            regions=regions,
-            y=downstream_task,
-            resample=False)
+    if downstream_task == 'kg' or downstream_task == 'geo':
+        x_train, y_train, x_val, y_val = data_protocol.protocol_minifoundation(folder_road='/phileo_data/downstream/downstream_dataset_patches_np/',
+                                                                               folder_leo='/phileo_data/mini_foundation/mini_foundation_patches_np/patches_labeled/',
+                                                                               y=downstream_task)
 
-    elif isinstance(split_ratio, float):
-        OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{split_ratio}'
-        x_train, y_train, x_val, y_val = data_protocol.protocol_split(
-            '/phileo_data/downstream/downstream_dataset_patches_np/',
-            split_percentage=split_ratio,
-            regions=regions,
-            y=downstream_task)
+    else:
+        if isinstance(n_shot, int):
+            OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{n_shot}'
+            x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot(
+                '/phileo_data/downstream/downstream_dataset_patches_np/',
+                dst='/phileo_data/downstream/downstream_datasets_nshot/',
+                n=n_shot,
+                regions=regions,
+                y=downstream_task,
+                resample=False)
+
+        elif isinstance(split_ratio, float):
+            OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{split_ratio}'
+            x_train, y_train, x_val, y_val = data_protocol.protocol_split(
+                '/phileo_data/downstream/downstream_dataset_patches_np/',
+                split_percentage=split_ratio,
+                regions=regions,
+                y=downstream_task)
 
     x_test, y_test = data_protocol.get_testset(folder='/phileo_data/downstream/downstream_dataset_patches_np/',
-                                               y=downstream_task)
+                                               y='kg')
 
     dl_train, dl_test, dl_val = load_data.load_data(x_train, y_train, x_val, y_val, x_test, y_test,
                                                     with_augmentations=augmentations,
                                                     num_workers=num_workers,
                                                     batch_size=batch_size,
-                                                    land_cover=lc,
+                                                    downstream_task=downstream_task,
                                                     device=device
                                                     )
 
     model_summary = summary(model,
-                            input_size=(batch_size, input_channels, input_size, input_size), )
+                            input_size=(batch_size, input_channels, input_size, input_size), device=device)
 
-    if model_name in (CNN_LIST + MIXER_LIST):
-        if downstream_task == 'roads' or downstream_task == 'roads':
-            trainer = training_loops.TrainBase(epochs=epochs, lr=lr, model=model, device=device,
-                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
-                                               train_loader=dl_train,
-                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-        elif downstream_task == 'lc':
-            trainer = training_loops.TrainLandCover(epochs=epochs, lr=lr, model=model, device=device,
-                                                    lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
-                                                    train_loader=dl_train,
-                                                    val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-
-    elif model_name in VIT_LIST:
-        if downstream_task == 'roads' or downstream_task == 'roads':
-            trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
-                                              lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
-                                              val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-
-        elif downstream_task == 'lc':
-            trainer = training_loops.TrainViTLandCover(epochs=epochs, lr=lr, model=model, device=device,
-                                                       lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
-                                                       train_loader=dl_train,
-                                                       val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+    trainer = get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop,
+                          dl_train, dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val)
 
     trainer.train()
     trainer.test()

@@ -6,10 +6,14 @@ import matplotlib
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
-import buteo as beo
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+
 
 from utils.data_protocol import protocol_fewshot
 from utils import config_lc
+from utils import config_kg
+import buteo as beo
 
 
 def render_s2_as_rgb(arr, channel_first=False):
@@ -146,3 +150,93 @@ def visualize_lc(x, y, y_pred=None, images=5, channel_first=False, vmin=0,save_p
     if save_path is not None:
         plt.savefig(save_path)
     plt.close()
+
+
+def decode_date(encoded_date):
+    doy_sin, doy_cos = encoded_date
+
+    doy = np.arctan2((2 * doy_sin - 1), (2 * doy_cos - 1)) * 365 / (2 * np.pi)
+
+    if doy < 1:
+        doy += 365
+
+    return np.array([np.round(doy)])
+
+
+def decode_coordinates(encoded_coords):
+    lat_enc, long_sin, long_cos = encoded_coords
+
+    lat = -lat_enc * 180 + 90
+
+    long = np.arctan2((2 * long_sin - 1), (2 * long_cos - 1)) * 360 / (2 * np.pi)
+
+    return np.array([lat, long])
+
+
+def encode_coordinates(coords):
+    lat, long = coords
+
+    lat = (-lat + 90) / 180
+
+    long_sin = (np.sin(long * 2 * np.pi / 360) + 1) / 2
+
+    long_cos = (np.cos(long * 2 * np.pi / 360) + 1) / 2
+
+    return np.array([lat, long_sin, long_cos], dtype=np.float32)
+
+
+def visualise_contrastive(images, pred_sim, est_sim, y, channel_first=True, save_path=None):
+
+
+    rows = columns = 5
+
+    c = 0
+
+    fig = plt.figure(figsize=(10 * columns, 10 * rows))
+
+    for i in range(0, columns):
+        for j in range(0, rows):
+            c = c + 1
+            arr = images[j]
+            rgb_image = render_s2_as_rgb(arr, channel_first)
+            fig.add_subplot(rows, columns, c)
+
+            kg_label = y[j, :31]
+            co_ordinate_labels = y[j, 31:34]
+            time_lables = y[j, 34:]
+
+
+            lat, long = decode_coordinates(co_ordinate_labels)
+
+            doy = decode_date(time_lables)
+            climate = config_kg.kg_map[int(np.argmax([kg_label]))]['climate_class_str']
+
+            s1 = f"Similarity  : est = {np.round(est_sim, 2)} \n pred - {np.round(pred_sim, 2)} \n"
+
+            s2 = f"Label: lat-long = {np.round(lat, 2), np.round(long, 2)} \n climate - {climate} \n DoY - {doy}"
+
+            plt.text(25, 25, s1, fontsize=18, bbox=dict(fill=True))
+
+            plt.text(25, 45, s2, fontsize=18, bbox=dict(fill=True))
+
+            plt.imshow(rgb_image)
+
+        plt.axis('on')
+
+        plt.grid()
+        plt.savefig(save_path)
+
+def visualize_arcface(x, y, save_path=None):
+    X_embedded = TSNE(n_components=2).fit_transform(x)
+    kg_map = config_kg.kg_map
+
+    fig, ax = plt.subplots(figsize=(16, 16))
+    for g in np.unique(y):
+        ix = np.where(y == g)
+        ax.scatter(X_embedded[ix, 0], X_embedded[ix, 1], c=np.array(kg_map[g]['colour_code'])/255, label=kg_map[g]['description'])
+    ax.legend(loc ="upper left")
+
+    if save_path is not None:
+        plt.savefig(save_path)
+    plt.close()
+
