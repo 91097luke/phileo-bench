@@ -16,7 +16,7 @@ import json
 
 # utils
 from utils import visualize
-
+from utils import config_lc
 
 
 class TrainBase():
@@ -109,6 +109,49 @@ class TrainBase():
         outputs = self.model(images)
         loss = self.criterion(outputs, labels)
         return loss
+    
+    def get_metrics(self, outputs=None, labels=None, running_metric=None, k=None):
+        
+        if (running_metric != None) and (k != None):
+            metric_names = ['mse','mae','mave','acc','precision','recall','baseline_mse']
+            # intermediary_values = ['mse','mae','mave','acc','tp','fp','fn','baseline_mse']
+
+            final_metrics = {'mse':running_metric[0] / (k + 1), 'mae':running_metric[1] / (k + 1), 'mave':running_metric[2] / (k + 1), 'acc':running_metric[3]/ (k + 1), 'precision':running_metric[4]/(running_metric[4]+running_metric[5]), 'recall':running_metric[4]/(running_metric[4]+running_metric[6]), 'baseline_mse':running_metric[7] / (k + 1)}
+            final_metrics['f1'] = 2 * final_metrics['precision'] * final_metrics['recall'] / (final_metrics['precision'] + final_metrics['recall'])
+
+            return final_metrics
+
+
+        elif (outputs == None) and (labels == None):
+            intermediary_values = ['mse','mae','mave','acc','tp','fp','fn','baseline_mse']
+            metric_init = np.zeros(len(intermediary_values)) # 
+            return  metric_init
+        
+        
+        else:
+            # regression metrics
+            error = outputs - labels
+            squared_error = error**2
+            test_mse = squared_error.mean().item()
+            test_mae = error.abs().mean().item()
+            test_mave = torch.mean(torch.abs(outputs.mean(dim=(1,2)) - labels.mean(dim=(1,2)) ) ).item()
+
+            # regression metrics disguised as classification
+            threshold = 0.5
+            label_classification = (labels > threshold).type(torch.int8)
+            output_classification = (outputs > threshold).type(torch.int8)
+
+            diff = output_classification - label_classification
+            fp = torch.count_nonzero(diff==1).item()
+            fn = torch.count_nonzero(diff==-1).item()
+            tp = label_classification.sum().item() - fn
+
+            test_accuracy = (label_classification==output_classification).type(torch.float).mean().item()
+            test_zero_model_mse = (labels**2).mean().item()
+
+            return np.array([test_mse,test_mae,test_mave,test_accuracy,tp,fp,fn,test_zero_model_mse])
+
+
 
     def t_loop(self, epoch, s):
         # Initialize the running loss
@@ -273,18 +316,19 @@ class TrainBase():
                           desc=f"Test Set")
         with torch.no_grad():
 
-            test_loss = 0
+            running_metric = self.get_metrics()
+
             for k, (images, labels) in enumerate(test_pbar):
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
-                # get loss
-                loss = self.get_loss(images, labels)
-                test_loss += loss.item()
+                running_metric += self.get_metrics(images,labels)
 
-            self.test_loss = test_loss / (k + 1)
 
-            print(f"Test Loss: {self.test_loss:.4f}")
+            self.test_metrics = self.get_metrics(running_metric=running_metric, k=k)
+        
+
+            print(f"Test Loss: {self.test_metrics}")
             outputs = self.model(images)
             self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(),
                                outputs.detach().cpu().numpy(), name='test')
@@ -307,8 +351,9 @@ class TrainBase():
 
                      'training_info': {'best_val_loss': self.best_loss,
                                        'best_epoch': self.best_epoch,
-                                       'last_epoch': self.last_epoch,
-                                       'test_loss': self.test_loss},
+                                       'last_epoch': self.last_epoch},
+
+                     'test_metrics': self.test_metrics,
 
                      'plot_info': {'epochs': self.e,
                                    'val_losses': self.vl,
@@ -345,6 +390,56 @@ class TrainLandCover(TrainBase):
         visualize.visualize_lc(x=images, y=labels, y_pred=outputs.argmax(axis=1), images=5,
                                channel_first=True, vmin=0, save_path=f"{self.out_folder}/{name}.png")
 
+    def get_metrics(self, images=None, labels=None, running_metric=None, k=None):
+        
+        if (running_metric != None) and (k != None):
+            metric_names = ['acc','precision','recall','baseline_mse']
+            # intermediary_values = ['confusion_matrix']
+
+            confmat = running_metric
+
+            total_pixels = np.sum(confmat)
+            
+            tp_per_class = np.diagonal(confmat)
+            total_tp = tp_per_class.sum()
+
+            fp_per_class = confmat.sum(axis=0) - tp_per_class
+            fn_per_class = confmat.sum(axis=1) - tp_per_class
+            
+
+            precision_per_class = tp_per_class/(fp_per_class+tp_per_class)
+            recall_per_class = tp_per_class/(fn_per_class+tp_per_class)
+
+            precision_micro = total_tp/(fp_per_class.sum() + total_tp)
+            recall_micro = total_tp/(fn_per_class.sum() + total_tp)
+            precision_macro = np.mean(precision_per_class)
+            recall_macro = np.mean(recall_per_class)
+
+            acc_total = total_tp/total_pixels
+
+            final_metrics = {'acc':acc_total, 'precision_per_class':precision_per_class,'recall_per_class':recall_per_class ,'precision_micro':precision_micro, 'precision_macro':precision_macro, 'recall_micro':recall_micro, 'recall_macro':recall_macro, 'conf_mat':confmat}
+
+            return final_metrics
+
+
+        elif (images == None) and (labels == None):
+            intermediary_values = ['confusion_matrix']
+            num_classes = len(config_lc.lc_raw_classes.keys())
+            metric_init = np.zeros((num_classes,num_classes)) # 
+            return  metric_init
+        
+        
+        else:
+            outputs = self.model(images)
+            outputs = outputs.argmax(axis=1).flatten()
+            labels = labels.squeeze().flatten()
+            
+            # stolen from pytorch confusion matrix
+            unique_mapping = labels.to(torch.long) * num_classes + outputs.to(torch.long)
+            bins = torch.bincount(unique_mapping, minlength=num_classes**2) 
+            cfm = bins.reshape(num_classes, num_classes)
+
+            return cfm.cpu().numpy()
 
 class TrainViT(TrainBase):
     def get_loss(self, images, labels):
@@ -374,3 +469,54 @@ class TrainViTLandCover(TrainBase):
         outputs = self.model.unpatchify(torch.from_numpy(outputs), c=11)
         visualize.visualize_lc(x=images, y=labels, y_pred=outputs.detach().cpu().numpy().argmax(axis=1), images=5,
                                channel_first=True, vmin=0, save_path=f"{self.out_folder}/{name}.png")
+
+    def get_metrics(self, images=None, labels=None, running_metric=None, k=None):
+        
+        if (running_metric != None) and (k != None):
+            metric_names = ['acc','precision','recall','baseline_mse']
+            # intermediary_values = ['confusion_matrix']
+
+            confmat = running_metric
+
+            total_pixels = np.sum(confmat)
+            
+            tp_per_class = np.diagonal(confmat)
+            total_tp = tp_per_class.sum()
+
+            fp_per_class = confmat.sum(axis=0) - tp_per_class
+            fn_per_class = confmat.sum(axis=1) - tp_per_class
+            
+
+            precision_per_class = tp_per_class/(fp_per_class+tp_per_class)
+            recall_per_class = tp_per_class/(fn_per_class+tp_per_class)
+
+            precision_micro = total_tp/(fp_per_class.sum() + total_tp)
+            recall_micro = total_tp/(fn_per_class.sum() + total_tp)
+            precision_macro = np.mean(precision_per_class)
+            recall_macro = np.mean(recall_per_class)
+
+            acc_total = total_tp/total_pixels
+
+            final_metrics = {'acc':acc_total, 'precision_per_class':precision_per_class,'recall_per_class':recall_per_class ,'precision_micro':precision_micro, 'precision_macro':precision_macro, 'recall_micro':recall_micro, 'recall_macro':recall_macro, 'conf_mat':confmat}
+
+            return final_metrics
+
+
+        elif (images == None) and (labels == None):
+            intermediary_values = ['confusion_matrix']
+            num_classes = len(config_lc.lc_raw_classes.keys())
+            metric_init = np.zeros((num_classes,num_classes)) # 
+            return  metric_init
+        
+        
+        else:
+            outputs = self.model.unpatchify(self.model(images), c=11)
+            outputs = outputs.argmax(axis=1).flatten()
+            labels = labels.squeeze().flatten()
+            
+            # stolen from pytorch confusion matrix
+            unique_mapping = labels.to(torch.long) * num_classes + outputs.to(torch.long)
+            bins = torch.bincount(unique_mapping, minlength=num_classes**2) 
+            cfm = bins.reshape(num_classes, num_classes)
+
+            return cfm.cpu().numpy()
