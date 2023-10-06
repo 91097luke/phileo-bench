@@ -29,7 +29,7 @@ class BaselineNet(nn.Module):
             nn.Conv2d(self.size, self.size, kernel_size=1, padding=self.padding),
             get_normalization(self.norm, self.size),
             self.activation,
-            nn.Conv2d(self.size, 1, kernel_size=1, padding=self.padding),
+            nn.Conv2d(self.size, self.output_dim, kernel_size=1, padding=self.padding),
         )
 
     def initialize_weights(self, std=0.02):
