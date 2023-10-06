@@ -3,8 +3,8 @@ import os
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 import matplotlib
-import PyQt5
-matplotlib.use('QtAgg')
+# import PyQt5
+# matplotlib.use('QtAgg')
 
 # PyTorch
 import torch
@@ -110,9 +110,9 @@ class TrainBase():
         loss = self.criterion(outputs, labels)
         return loss
     
-    def get_metrics(self, outputs=None, labels=None, running_metric=None, k=None):
+    def get_metrics(self, images=None, labels=None, running_metric=None, k=None):
         
-        if (running_metric != None) and (k != None):
+        if (running_metric is not None) and (k is not None):
             metric_names = ['mse','mae','mave','acc','precision','recall','baseline_mse']
             # intermediary_values = ['mse','mae','mave','acc','tp','fp','fn','baseline_mse']
 
@@ -122,13 +122,15 @@ class TrainBase():
             return final_metrics
 
 
-        elif (outputs == None) and (labels == None):
+        elif (images == None) and (labels == None):
             intermediary_values = ['mse','mae','mave','acc','tp','fp','fn','baseline_mse']
             metric_init = np.zeros(len(intermediary_values)) # 
             return  metric_init
         
         
         else:
+            
+            outputs = self.model(images)
             # regression metrics
             error = outputs - labels
             squared_error = error**2
@@ -392,7 +394,7 @@ class TrainLandCover(TrainBase):
 
     def get_metrics(self, images=None, labels=None, running_metric=None, k=None):
         
-        if (running_metric != None) and (k != None):
+        if (running_metric is not None) and (k is not None):
             metric_names = ['acc','precision','recall','baseline_mse']
             # intermediary_values = ['confusion_matrix']
 
@@ -417,7 +419,7 @@ class TrainLandCover(TrainBase):
 
             acc_total = total_tp/total_pixels
 
-            final_metrics = {'acc':acc_total, 'precision_per_class':precision_per_class,'recall_per_class':recall_per_class ,'precision_micro':precision_micro, 'precision_macro':precision_macro, 'recall_micro':recall_micro, 'recall_macro':recall_macro, 'conf_mat':confmat}
+            final_metrics = {'acc':acc_total, 'precision_per_class':precision_per_class.tolist(),'recall_per_class':recall_per_class.tolist() ,'precision_micro':precision_micro, 'precision_macro':precision_macro, 'recall_micro':recall_micro, 'recall_macro':recall_macro, 'conf_mat':confmat.tolist()}
 
             return final_metrics
 
@@ -435,6 +437,7 @@ class TrainLandCover(TrainBase):
             labels = labels.squeeze().flatten()
             
             # stolen from pytorch confusion matrix
+            num_classes = len(config_lc.lc_raw_classes.keys())
             unique_mapping = labels.to(torch.long) * num_classes + outputs.to(torch.long)
             bins = torch.bincount(unique_mapping, minlength=num_classes**2) 
             cfm = bins.reshape(num_classes, num_classes)
@@ -472,7 +475,7 @@ class TrainViTLandCover(TrainBase):
 
     def get_metrics(self, images=None, labels=None, running_metric=None, k=None):
         
-        if (running_metric != None) and (k != None):
+        if (running_metric is not None) and (k is not None):
             metric_names = ['acc','precision','recall','baseline_mse']
             # intermediary_values = ['confusion_matrix']
 
@@ -497,7 +500,7 @@ class TrainViTLandCover(TrainBase):
 
             acc_total = total_tp/total_pixels
 
-            final_metrics = {'acc':acc_total, 'precision_per_class':precision_per_class,'recall_per_class':recall_per_class ,'precision_micro':precision_micro, 'precision_macro':precision_macro, 'recall_micro':recall_micro, 'recall_macro':recall_macro, 'conf_mat':confmat}
+            final_metrics = {'acc':acc_total, 'precision_per_class':precision_per_class.tolist(),'recall_per_class':recall_per_class.tolist() ,'precision_micro':precision_micro, 'precision_macro':precision_macro, 'recall_micro':recall_micro, 'recall_macro':recall_macro, 'conf_mat':confmat.tolist()}
 
             return final_metrics
 
@@ -515,6 +518,7 @@ class TrainViTLandCover(TrainBase):
             labels = labels.squeeze().flatten()
             
             # stolen from pytorch confusion matrix
+            num_classes = len(config_lc.lc_raw_classes.keys())
             unique_mapping = labels.to(torch.long) * num_classes + outputs.to(torch.long)
             bins = torch.bincount(unique_mapping, minlength=num_classes**2) 
             cfm = bins.reshape(num_classes, num_classes)
