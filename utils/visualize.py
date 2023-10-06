@@ -94,6 +94,9 @@ def visualize_lc(x, y, y_pred=None, images=5, channel_first=False, vmin=0,save_p
     lc_map_inverted = {v: k for k, v in zip(lc_map.keys(), lc_map.values())}
     vmax = len(lc_map)
 
+    if images > x.shape[0]:
+        images = x.shape[0]
+        
     # d = 1 if channel_first else -1
     # # y= y.argmax(axis=d)
     # if y_pred is not None:

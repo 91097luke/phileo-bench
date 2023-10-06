@@ -8,12 +8,23 @@ import buteo as beo
 import numpy as np
 import random
 
-random.seed(97)
+#
+from utils.training_utils import MultiArray_1D
 
+
+random.seed(97)
+np.random.seed(1234) # also affect pandas
 
 REGIONS_DOWNSTREAM_DATA = ['denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
                            'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
                            'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1']
+
+REGIONS_BUCKETS = {'europe':['europe','denmark-1','denmark-2'], 
+                   'east-africa':['east-africa','egypt-1','isreal-1','isreal-2','nigeria','ghana-1','senegal','tanzania-1','tanzania-2','tanzania-3','tanzania-4','tanzania-5','uganda-1'],
+                   'eq-guinea':['eq-guinea'],
+                   'north-america':['north-america'],
+                   'south-america':['south-america'],
+                   'japan':['japan']}
 
 REGIONS = REGIONS_DOWNSTREAM_DATA
 LABELS = ['label_roads','label_kg','label_building','label_lc', 'label_coords']
@@ -22,6 +33,7 @@ LABELS = ['label_roads','label_kg','label_building','label_lc', 'label_coords']
 def sanity_check_labels_exist(x_files, y_files):
     """
     checks that s2 and label numpy files are consistent
+
     :param x_files:
     :param y_files:
     :return:
@@ -95,10 +107,10 @@ def protocol_split(folder: str,
     """
 
     if regions is None:
-        regions = REGIONS
+        regions = list(REGIONS_BUCKETS.keys())
     else:
         for r in regions:
-            assert r in REGIONS, f"region {r} not found"
+            assert r in list(REGIONS_BUCKETS.keys()), f"region {r} not found. Possible regions are {list(REGIONS_BUCKETS.keys())}"
 
     assert 0 < split_percentage <= 1, "split percentage out of range (0 - 1)"
 
@@ -106,10 +118,15 @@ def protocol_split(folder: str,
     df = df.sort_values(by=['samples'])
 
     x_train_files = []
-
+    shots_per_region = {'total':0}
+    # egions =[subregion for r in regions for subregion in REGIONS_BUCKETS[r]]
     for region in regions:
+        mask = [False]*len(df)
+        for subregion in REGIONS_BUCKETS[region]:
+            submask = [subregion in f for f in df.iloc[:, 0]]
+            mask = [any(tuple) for tuple in zip(mask, submask)]
         mask = [region in f for f in df.iloc[:, 0]]
-        df_temp = df[mask].copy().reset_index(drop=True)
+        df_temp = df[mask].sample(frac=1).copy().reset_index(drop=True)
         # skip iteration if Region does not belong to current dataset
         if df_temp.shape[0] == 0:
             continue
@@ -120,7 +137,11 @@ def protocol_split(folder: str,
         idx_closest = df_temp.iloc[
             (df_temp['cumsum'] - int(df_temp['samples'].sum() * split_percentage)).abs().argsort()[:1]].index.values[0]
         x_train_files = x_train_files + list(df_temp.iloc[:idx_closest, 0])
+        
+        shots_per_region[region] = df_temp['cumsum'].values[idx_closest]
 
+    shots_per_region['total'] = sum(shots_per_region.values())
+    print(shots_per_region)
     x_train_files = [os.path.join(folder, f_name) for f_name in x_train_files]
     y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
     x_val_files = [f_name.replace('train', 'val') for f_name in x_train_files]
@@ -186,11 +207,10 @@ def protocol_fewshot(folder: str,
     else:
 
         if regions is None:
-            regions = REGIONS
+            regions = list(REGIONS_BUCKETS.keys())
         else:
             for r in regions:
-                assert r in REGIONS, f"region {r} not found"
-
+                assert r in list(REGIONS_BUCKETS.keys()), f"region {r} not found. Possible regions are {list(REGIONS_BUCKETS.keys())}"
         regions = check_region_validity(folder, regions, y)
 
         f_x = glob(os.path.join(folder, f"{regions[0]}*test_s2.npy"))[0]
@@ -208,8 +228,15 @@ def protocol_fewshot(folder: str,
         del ref_x ; del ref_y
 
         for i, region in enumerate(regions):
+            print(i,region)
+            loc_v = np.unique(np.where(val_y_temp==0)[0])
+            loc_t = np.unique(np.where(train_y_temp==0)[0])
+            print(len(loc_v),len(loc_t))
+
             # generate multi array for region
-            x_train_files = sorted(glob(os.path.join(folder, f"{region}*train_s2.npy")))
+            x_train_files = []
+            for sub_regions in REGIONS_BUCKETS[region]: 
+                x_train_files += sorted(glob(os.path.join(folder, f"{sub_regions}*train_s2.npy")))
             y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
             x_val_files = [f_name.replace('train', 'val') for f_name in x_train_files]
             y_val_files = [f_name.replace('train', 'val') for f_name in y_train_files]
@@ -218,11 +245,12 @@ def protocol_fewshot(folder: str,
             x_train_files, y_train_files = sanity_check_labels_exist(x_train_files, y_train_files)
             x_val_files, y_val_files = sanity_check_labels_exist(x_val_files, y_val_files)
 
-
+            print('s1')
             x_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_train_files])
             y_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_train_files])
             x_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_val_files])
             y_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_val_files])
+            print('s2')
 
             if n < len(x_train):
                 train_indexes = random.sample(range(0, len(x_train)), n)
@@ -230,6 +258,7 @@ def protocol_fewshot(folder: str,
                 for j, idx in enumerate(train_indexes):
                     train_X_temp[(n*i)+j] = x_train[idx]
                     train_y_temp[(n * i) + j] = y_train[idx]
+                print(train_y_temp.shape,j, (n * i) + j )
 
             else:
                 # resample if n > than regions number of samples
@@ -250,18 +279,22 @@ def protocol_fewshot(folder: str,
                 for j, idx in enumerate(val_indexes):
                     val_X_temp[(int(np.ceil(n * val_ratio)) * i) + j] = x_val[idx]
                     val_y_temp[(int(np.ceil(n * val_ratio)) * i) + j] = y_val[idx]
+                print(val_y_temp.shape,j, int(np.ceil(n * val_ratio)) * i +j )
 
             else:
+                print('not enough', len(x_val), int(np.ceil(n * val_ratio)))
                 # resample if n > than regions number of samples
                 for j in range(0, len(x_val)):
                     val_X_temp[(int(np.ceil(n * val_ratio)))+j] = x_val[j]
                     val_y_temp[(int(np.ceil(n * val_ratio)))+j] = y_val[j]
-
+                print(n,j)
                 if resample:
                     val_indexes = random.choices(range(0, len(x_val)), k=((int(np.ceil(n * val_ratio))) - len(x_val)))
+                    print('resampling', val_indexes)
                     for j, idx in enumerate(val_indexes):
                         val_X_temp[(int(np.ceil(n * val_ratio)))+len(x_val)+j] = x_val[idx]
                         val_y_temp[(int(np.ceil(n * val_ratio)))+len(x_val) + j] = y_val[idx]
+            print('s3')
 
             del x_train; del y_train; del x_val; del y_val
 
@@ -271,6 +304,72 @@ def protocol_fewshot(folder: str,
         np.save(f'{dst}/{n}_shot_{y}/{n}shot_val_s2.npy', val_X_temp)
         np.save(f'{dst}/{n}_shot_{y}/{n}shot_val_label_{y}.npy', val_y_temp)
     return train_X_temp, train_y_temp, val_X_temp, val_y_temp
+
+
+def protocol_fewshot_memmapped(folder: str,
+                     dst: str,
+                     n: int = 10,
+                     val_ratio: float = 0.2,
+                     regions: list = None,
+                     y: str = 'building',
+                     resample: bool = False,
+                     ):
+
+    """
+    Loads n-samples data from specified geographic regions.
+    :param folder: dataset source folder
+    :param dst: save folder
+    :param n: number of samples
+    :param val_ratio: ratio of validation set
+    :param regions: geographical regions to sample
+    :param y: downstream label from roads, kg, building, lc, coords
+    :return: train, val MultiArrays
+    """
+
+    if regions is None:
+        regions = list(REGIONS_BUCKETS.keys())
+    else:
+        for r in regions:
+            assert r in list(REGIONS_BUCKETS.keys()), f"region {r} not found. Possible regions are {list(REGIONS_BUCKETS.keys())}"
+    regions = check_region_validity(folder, regions, y)
+
+    x_train_samples = []
+    y_train_samples = []
+    x_val_samples = []
+    y_val_samples = []
+    for i, region in enumerate(regions):
+        print(i,region)
+
+        # generate multi array for region
+        x_train_files = []
+        for sub_regions in REGIONS_BUCKETS[region]: 
+            x_train_files += sorted(glob(os.path.join(folder, f"{sub_regions}*train_s2.npy")))
+        y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
+        x_val_files = [f_name.replace('train', 'val') for f_name in x_train_files]
+        y_val_files = [f_name.replace('train', 'val') for f_name in y_train_files]
+
+        # checks that s2 and label numpy files are consistent
+        x_train_files, y_train_files = sanity_check_labels_exist(x_train_files, y_train_files)
+        x_val_files, y_val_files = sanity_check_labels_exist(x_val_files, y_val_files)
+
+        x_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_train_files])
+        y_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_train_files])
+        x_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_val_files])
+        y_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_val_files])
+
+        n_train_samples = min(n,len(x_train))
+        n_val_samples = min(int(np.ceil(n * val_ratio)), len(x_val))
+
+        train_indices= random.sample(range(0, len(x_train)), n_train_samples)
+        val_indices  = random.sample(range(0, len(y_val)), n_val_samples)
+
+        x_train_samples += [x_train[i] for i in train_indices]
+        y_train_samples += [y_train[i] for i in train_indices]
+
+        x_val_samples += [x_val[i] for i in val_indices]
+        y_val_samples += [y_val[i] for i in val_indices]
+
+    return MultiArray_1D(x_train_samples), MultiArray_1D(y_train_samples), MultiArray_1D(x_val_samples), MultiArray_1D(y_val_samples)
 
 
 if __name__ == '__main__':

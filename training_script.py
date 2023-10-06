@@ -19,6 +19,7 @@ from models.model_AutoEncoderViT_versions import AutoencoderViT_base, Autoencode
 from utils import data_protocol
 from utils import load_data
 from utils import training_loops
+from utils.training_utils import read_yaml
 
 CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge']
 MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
@@ -103,36 +104,38 @@ def get_models(model_name, input_channels, output_channels, input_size):
 
 def get_args():
     parser = argparse.ArgumentParser(description='Experiment TestBed for Phi-Leo Foundation Model Project')
-    parser.add_argument('--experiment_name', type=str, default=f'{date.today().strftime("%d%m%Y")}_experiment',
-                        help='Experiment folder name')
-    parser.add_argument('--model_name', type=str, choices=MODEL_LIST, required=True,
-                        help='Select appropriate model')
-    parser.add_argument('--lr', type=float, default=0.001, help='Set learning rate')
-    parser.add_argument('--batch_size', type=int, default=16, help='Set batch size')
-    parser.add_argument('--epochs', type=int, default=250, help='Set training epochs')
-    parser.add_argument('--early_stop', type=int, default=50, help='set training loop patience for early stopping')
-    parser.add_argument('--lr_scheduler', type=str, default=None,
-                        choices=[None, 'reduce_on_plateau', 'cosine_annealing'], help='select learning rate scheduler')
-    parser.add_argument('--warmup', action="store_true", help='Enables linear 5 epoch warmup scheduler')
-    parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-                        help='select training device')
-    parser.add_argument('--num_workers', type=int, default=0, help='set number of workers')
-    parser.add_argument('--vis_val', action="store_true", help='enable saving of intermediate visualization plots')
-    parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc'], required=True,
-                        help='select downstream task')
-    parser.add_argument('--input_channels', type=int, required=False, default=10, help='Define Number of input channels')
-    parser.add_argument('--input_size', type=int, required=True, default=128, help='Define input size')
-    parser.add_argument('--output_channels', type=int, required=True, default=1, help='Define Number of output channels')
+    # parser.add_argument('--experiment_name', type=str, default=f'{date.today().strftime("%d%m%Y")}_experiment',
+    #                     help='Experiment folder name')
+    # parser.add_argument('--model_name', type=str, choices=MODEL_LIST, required=True,
+    #                     help='Select appropriate model')
+    # parser.add_argument('--lr', type=float, default=0.001, help='Set learning rate')
+    # parser.add_argument('--batch_size', type=int, default=16, help='Set batch size')
+    # parser.add_argument('--epochs', type=int, default=250, help='Set training epochs')
+    # parser.add_argument('--early_stop', type=int, default=50, help='set training loop patience for early stopping')
+    # parser.add_argument('--lr_scheduler', type=str, default=None,
+    #                     choices=[None, 'reduce_on_plateau', 'cosine_annealing'], help='select learning rate scheduler')
+    # parser.add_argument('--warmup', action="store_true", help='Enables linear 5 epoch warmup scheduler')
+    # parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+    #                     help='select training device')
+    # parser.add_argument('--num_workers', type=int, default=0, help='set number of workers')
+    # parser.add_argument('--vis_val', action="store_true", help='enable saving of intermediate visualization plots')
+    # parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc'], required=True,
+    #                     help='select downstream task')
+    # parser.add_argument('--input_channels', type=int, required=False, default=10, help='Define Number of input channels')
+    # parser.add_argument('--input_size', type=int, required=True, default=128, help='Define input size')
+    # parser.add_argument('--output_channels', type=int, required=True, default=1, help='Define Number of output channels')
 
-    parser.add_argument('--regions', type=list, default=None, help='select regions to be included',
-                        choices=[None, 'denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
-                                 'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
-                                 'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1'])
-    parser.add_argument('--n_shot', type=int, default=None,
-                        help='Loads n-samples of data from specified geographic regions')
-    parser.add_argument('--split_ratio', type=float, default=None,
-                        help='Loads a percentage of the data from specified geographic regions.')
-    parser.add_argument('--augmentations', action="store_true", help='enables augmentations')
+    # parser.add_argument('--regions', type=list, default=None, help='select regions to be included',
+    #                     choices=[None, 'denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
+    #                              'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
+    #                              'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1'])
+    # parser.add_argument('--n_shot', type=int, default=None,
+    #                     help='Loads n-samples of data from specified geographic regions')
+    # parser.add_argument('--split_ratio', type=float, default=None,
+    #                     help='Loads a percentage of the data from specified geographic regions.')
+    # parser.add_argument('--augmentations', action="store_true", help='enables augmentations')
+    parser.add_argument('--read_yaml', type=str, help='take parameters from yaml path', default=None)
+
     return parser
 
 def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
@@ -141,6 +144,8 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
 
     init_lr = lr
+    device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    torch.set_default_device(device)
 
     assert not (n_shot == None) or not (split_ratio == None), 'Please define data partition protocol!'
     assert isinstance(n_shot, int) ^ isinstance(split_ratio, float), 'n_shot cannot be used with split_ratio!'
@@ -166,7 +171,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
     if isinstance(n_shot, int):
         OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{n_shot}'
-        x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot(
+        x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot_memmapped(
             '/phileo_data/downstream/downstream_dataset_patches_np/',
             dst='/phileo_data/downstream/downstream_datasets_nshot/',
             n=n_shot,
@@ -209,7 +214,18 @@ if __name__ == "__main__":
 
     parser = get_args()
     args = parser.parse_args()
-    main(**vars(args))
+
+    if args.read_yaml is not None:
+        print(f"WARNING: overwriting all parameters with defaults stored in {args.read_yaml}")
+        args = read_yaml(args.read_yaml)
+    
+#     CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge']
+# MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
+# VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
+#             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge'] 
+    for model in ['baseline_cnn','core_unet_base','mixer_base','linear_vit_base']:
+        for n_shot in [50,100,500,5000,50000]:
+            main(**vars(args))
 
 
 

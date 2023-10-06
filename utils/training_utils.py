@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import buteo as beo
 
 
 class TiledMSE(nn.Module):
@@ -281,7 +282,7 @@ class SE_BlockV3(nn.Module):
 
 def get_activation(activation_name):
     if activation_name == "relu":
-        return nn.ReLU6(inplace=True)
+        return nn.ReLU6(inplace=False)
     elif isinstance(activation_name, torch.nn.modules.activation.ReLU6):
         return activation_name
 
@@ -376,3 +377,80 @@ def convert_torch_to_float(tensor):
         return float(tensor)
     else:
         raise ValueError("Cannot convert tensor to float")
+
+
+import yaml
+class AttrDict(dict):
+
+    def __init__(self, *args, **kwargs):
+
+        super(AttrDict, self).__init__(*args, **kwargs)
+
+        self.__dict__ = self
+
+
+def read_yaml(path):
+
+    f = open(path)
+
+    params = yaml.load(f, Loader=yaml.Loader)
+
+    return AttrDict(params)
+
+from typing import Union, List, Tuple, Optional
+
+
+
+class MultiArray_1D(beo.MultiArray):
+    def __init__(self,
+        array_list: List[Union[np.ndarray, np.memmap]],
+        shuffle: bool = False,
+        random_sampling: bool = False,
+        seed: int = 42,
+        _idx_start: Optional[int] = None,
+        _idx_end: Optional[int] = None,
+        _is_subarray: bool = False
+    ):
+        self.array_list = array_list
+        self.is_subarray = _is_subarray
+        
+        assert isinstance(self.array_list, list), "Input should be a list of numpy arrays."
+        assert len(self.array_list) > 0, "Input list is empty. Please provide a list with numpy arrays."
+        assert all(isinstance(item, (np.ndarray, np.memmap)) for item in self.array_list), "Input list should only contain numpy arrays."
+
+        self.cumulative_sizes = [i for i in range(len(self.array_list))]
+
+        self._idx_start = int(_idx_start) if _idx_start is not None else 0
+        self._idx_end = int(_idx_end) if _idx_end is not None else int(self.cumulative_sizes[-1])
+
+        assert isinstance(self._idx_start, int), "Minimum length should be an integer."
+        assert isinstance(self._idx_end, int), "Maximum length should be an integer."
+        assert self._idx_start < self._idx_end, "Minimum length should be smaller than maximum length."
+
+        self.total_length = len(array_list)-1 #int(min(self.cumulative_sizes[-1], self._idx_end - self._idx_start))  # Store length for faster access
+
+        if shuffle and random_sampling:
+            raise ValueError("Cannot use both shuffling and resevoir sampling at the same time.")
+
+        # Shuffling
+        self.seed = seed
+        self.shuffle = shuffle
+        self.shuffle_indices = None
+        self.random_sampling = random_sampling
+        self.rng = np.random.default_rng(seed)
+
+        if self.shuffle:
+            self.shuffle_indices = self.rng.permutation(range(self._idx_start, self._idx_end))
+    
+    
+    def _load_item(self, idx: int):
+        """ Load an item from the array list. """
+        # array_idx = np.searchsorted(self.cumulative_sizes, idx, side='right') - 1
+
+        # calculated_idx = idx - self.cumulative_sizes[array_idx]
+        # if calculated_idx < 0 or calculated_idx >= self.array_list[array_idx].shape[0]:
+        #     raise IndexError(f'Index {idx} out of bounds for MultiArray with length {self.__len__()}')
+
+        output = self.array_list[idx]# [calculated_idx]
+
+        return output
