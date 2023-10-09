@@ -11,8 +11,8 @@ import argparse
 import sys; sys.path.append("../")
 
 from models.model_Baseline import BaselineNet
-from models.model_CoreCNN_versions import CoreUnet_base, CoreUnet_large, CoreUnet_huge
-from models.model_Mixer_versions import Mixer_base, Mixer_large, Mixer_huge
+from models.model_CoreCNN_versions import CoreUnet_nano, CoreUnet_tiny, CoreUnet_base, CoreUnet_large, CoreUnet_huge
+from models.model_Mixer_versions import Mixer_nano, Mixer_tiny, Mixer_base, Mixer_large, Mixer_huge
 from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, LinearViT_huge
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
 
@@ -21,8 +21,8 @@ from utils import load_data
 from utils import training_loops
 from utils.training_utils import read_yaml
 
-CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge']
-MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
+CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 'core_unet_large', 'core_unet_huge']
+MIXER_LIST = ['mixer_nano', 'mixer_tiny', 'mixer_base', 'mixer_large', 'mixer_huge']
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge']
 
@@ -67,12 +67,22 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
 def get_models(model_name, input_channels, output_channels, input_size):
     if model_name == 'baseline_cnn':
         return BaselineNet(input_dim=input_channels, output_dim=output_channels)
+    elif model_name == 'core_unet_nano':
+        return CoreUnet_nano(input_dim=input_channels, output_dim=output_channels)
+    elif model_name == 'core_unet_tiny':
+        return CoreUnet_tiny(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_unet_base':
         return CoreUnet_base(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_unet_large':
         return CoreUnet_large(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_unet_huge':
         return CoreUnet_huge(input_dim=input_channels, output_dim=output_channels)
+    elif model_name == 'mixer_nano':
+        return Mixer_nano(chw=(input_channels, input_size, input_size),
+                          output_dim=output_channels)
+    elif model_name == 'mixer_tiny':
+        return Mixer_tiny(chw=(input_channels, input_size, input_size),
+                          output_dim=output_channels)
     elif model_name == 'mixer_base':
         return Mixer_base(chw=(input_channels, input_size, input_size),
                           output_dim=output_channels)
