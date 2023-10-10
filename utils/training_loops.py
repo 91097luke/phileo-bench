@@ -100,7 +100,7 @@ class TrainBase():
                 last_epoch=self.epochs - 1,
             )
         elif self.lr_scheduler == 'reduce_on_plateau':
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', factor=0.1, patience=10, min_lr=1e-6)
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', factor=0.1, patience=6, min_lr=1e-6)
         else:
             scheduler = None
         return scheduler
@@ -268,7 +268,7 @@ class TrainBase():
 
         # create dst folder for generated files/artifacts
         os.makedirs(self.out_folder, exist_ok=True)
-        s = None
+        s = self.scheduler
 
         # Training loop
         for epoch in range(self.epochs):
