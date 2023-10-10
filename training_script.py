@@ -154,8 +154,9 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
 
     init_lr = lr
-    device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device= torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
     torch.set_default_device(device)
+    print('DEVICE',torch.cuda.get_device_name(device),device)
 
     assert not (n_shot == None) or not (split_ratio == None), 'Please define data partition protocol!'
     assert isinstance(n_shot, int) ^ isinstance(split_ratio, float), 'n_shot cannot be used with split_ratio!'
@@ -182,8 +183,8 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     if isinstance(n_shot, int):
         OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{n_shot}'
         x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot_memmapped(
-            '/phileo_data/downstream/downstream_dataset_patches_np/',
-            dst='/phileo_data/downstream/downstream_datasets_nshot/',
+            '/mnt/g/phileo_data/downstream/downstream_dataset_patches_np/',
+            dst='/mnt/g/phileo_data/downstream/downstream_datasets_nshot/',
             n=n_shot,
             regions=regions,
             y=downstream_task,
@@ -192,12 +193,12 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     elif isinstance(split_ratio, float):
         OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{split_ratio}'
         x_train, y_train, x_val, y_val = data_protocol.protocol_split(
-            '/phileo_data/downstream/downstream_dataset_patches_np/',
+            '/mnt/g/phileo_data/downstream/downstream_dataset_patches_np/',
             split_percentage=split_ratio,
             regions=regions,
             y=downstream_task)
 
-    x_test, y_test = data_protocol.get_testset(folder='/phileo_data/downstream/downstream_dataset_patches_np/',
+    x_test, y_test = data_protocol.get_testset(folder='/mnt/g/phileo_data/downstream/downstream_dataset_patches_np/',
                                                y=downstream_task)
 
     dl_train, dl_test, dl_val = load_data.load_data(x_train, y_train, x_val, y_val, x_test, y_test,
@@ -233,8 +234,10 @@ if __name__ == "__main__":
 # MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
 # VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
 #             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge'] 
-    for model in ['baseline_cnn','core_unet_base','mixer_base','linear_vit_base']:
+    for model in ['core_unet_nano','mixer_nano','baseline_cnn','linear_vit_base']:
         for n_shot in [50,100,500,5000,50000]:
+            args['model_name'] = model 
+            args['n_shot'] = n_shot
             main(**vars(args))
 
 
