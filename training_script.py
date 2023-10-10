@@ -20,7 +20,7 @@ from utils import data_protocol
 from utils import load_data
 from utils import training_loops
 from utils.training_utils import read_yaml
-
+torch.manual_seed(123456)
 CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 'core_unet_large', 'core_unet_huge']
 MIXER_LIST = ['mixer_nano', 'mixer_tiny', 'mixer_base', 'mixer_large', 'mixer_huge']
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
@@ -234,7 +234,7 @@ if __name__ == "__main__":
 # MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
 # VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
 #             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge'] 
-    for model in ['core_unet_nano','mixer_nano','baseline_cnn','linear_vit_base']:
+    for model in ['mixer_nano']: #,'mixer_nano','baseline_cnn','linear_vit_base']:
         for n_shot in [50,100,500,5000,50000]:
             args['model_name'] = model 
             args['n_shot'] = n_shot
