@@ -20,8 +20,8 @@ REGIONS_DOWNSTREAM_DATA = ['denmark-1', 'denmark-2', 'east-africa', 'egypt-1', '
                            'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1']
 
 REGIONS_BUCKETS = {'europe':['europe','denmark-1','denmark-2'], 
-                   'east-africa':['east-africa','egypt-1','isreal-1','isreal-2','nigeria','ghana-1','senegal','tanzania-1','tanzania-2','tanzania-3','tanzania-4','tanzania-5','uganda-1'],
-                   'eq-guinea':['eq-guinea'],
+                   'east-africa':['east-africa','tanzania-1','tanzania-2','tanzania-3','tanzania-4','tanzania-5','uganda-1'],
+                   'northwest-africa':['eq-guinea','ghana-1','egypt-1','isreal-1','isreal-2','nigeria','senegal'],
                    'north-america':['north-america'],
                    'south-america':['south-america'],
                    'japan':['japan']}
@@ -360,8 +360,33 @@ def protocol_fewshot_memmapped(folder: str,
         n_train_samples = min(n,len(x_train))
         n_val_samples = min(int(np.ceil(n * val_ratio)), len(x_val))
 
-        train_indices= random.sample(range(0, len(x_train)), n_train_samples)
-        val_indices  = random.sample(range(0, len(y_val)), n_val_samples)
+        random_train_indices= random.sample(range(0, len(x_train)), len(x_train))
+        random_val_indices  = random.sample(range(0, len(y_val)), len(y_val))
+
+        if y =='roads' or y=='building': # make sure training data is representative of the task
+            train_indices = []
+            val_indices = []
+            for i in random_train_indices:
+                label = y_train[i]
+                if np.mean(label)>0.005:
+                    train_indices.append(i)
+                else:
+                    if random.random()>0.75:
+                        train_indices.append(i)
+
+                if len(train_indices)==n_train_samples:
+                    break
+
+            for i in random_val_indices:
+                label = y_val[i]
+                if np.mean(label)>0.01:
+                    val_indices.append(i)
+                else:
+                    if random.random()>0.75:
+                        val_indices.append(i)
+                if len(val_indices)==n_val_samples:
+                    break
+
 
         x_train_samples += [x_train[i] for i in train_indices]
         y_train_samples += [y_train[i] for i in train_indices]
