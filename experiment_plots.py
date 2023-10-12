@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import matplotlib
-import PyQt5
-matplotlib.use('QtAgg')
+# import PyQt5
+# matplotlib.use('QtAgg')
 import glob
 import json
 import os
@@ -16,6 +16,7 @@ def get_args():
     parser.add_argument('--y_logscale', type=bool, required=False, default=True)
     parser.add_argument('--x_logscale', type=bool, required=False, default=False)
 
+    return parser
 
 def main(folder, plot_title, y_logscale, x_logscale):
     y = []
@@ -26,7 +27,7 @@ def main(folder, plot_title, y_logscale, x_logscale):
         f = open(file)
         data = json.load(f)
         x.append(data['training_parameters']['train_samples'])
-        y.append(data['training_info']['test_loss'])
+        y.append(data['test_metrics']['mse'])
 
     fig = plt.figure()
     plt.scatter(x, y, label='Test Loss', )
