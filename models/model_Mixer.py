@@ -251,17 +251,16 @@ class Mixer(nn.Module):
         self.skip_layers = nn.ModuleList(self.skip_layers)
         self.skip_layers_2 = nn.ModuleList(self.skip_layers_2)
 
-        # self.head = nn.Sequential(
-        #     CNNBlock(self.embedding_dims[-1], self.embedding_dims[-1]),
-        #     CNNBlock(self.embedding_dims[-1], self.embedding_dims[-1]),
-        #     nn.Conv2d(self.embedding_dims[-1], self.output_dim, 1, padding=0),
-        # )
-
         self.head = nn.Sequential(
-            nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten(),
-            nn.Linear(self.embedding_dims[-1], self.output_dim),
+            CNNBlock(self.embedding_dims[-1], self.embedding_dims[-1]),
+            CNNBlock(self.embedding_dims[-1], self.embedding_dims[-1]),
+            nn.Conv2d(self.embedding_dims[-1], self.output_dim, 1, padding=0),
         )
+        # self.head = nn.Sequential(
+        #     nn.AdaptiveAvgPool2d((1, 1)),
+        #     nn.Flatten(),
+        #     nn.Linear(self.embedding_dims[-1], self.output_dim),
+        # )
 
         self.apply(self._init_weights)
 
