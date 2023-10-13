@@ -141,7 +141,6 @@ def protocol_split(folder: str,
         shots_per_region[region] = df_temp['cumsum'].values[idx_closest]
 
     shots_per_region['total'] = sum(shots_per_region.values())
-    print(shots_per_region)
     x_train_files = [os.path.join(folder, f_name) for f_name in x_train_files]
     y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
     x_val_files = [f_name.replace('train', 'val') for f_name in x_train_files]
@@ -231,11 +230,6 @@ def protocol_fewshot(folder: str,
         del ref_x ; del ref_y
 
         for i, region in enumerate(regions):
-            print(i,region)
-            loc_v = np.unique(np.where(val_y_temp==0)[0])
-            loc_t = np.unique(np.where(train_y_temp==0)[0])
-            print(len(loc_v),len(loc_t))
-
             # generate multi array for region
             x_train_files = []
             for sub_regions in REGIONS_BUCKETS[region]: 
@@ -248,12 +242,10 @@ def protocol_fewshot(folder: str,
             x_train_files, y_train_files = sanity_check_labels_exist(x_train_files, y_train_files)
             x_val_files, y_val_files = sanity_check_labels_exist(x_val_files, y_val_files)
 
-            print('s1')
             x_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_train_files])
             y_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_train_files])
             x_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_val_files])
             y_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_val_files])
-            print('s2')
 
             if n < len(x_train):
                 train_indexes = random.sample(range(0, len(x_train)), n)
@@ -261,7 +253,6 @@ def protocol_fewshot(folder: str,
                 for j, idx in enumerate(train_indexes):
                     train_X_temp[(n*i)+j] = x_train[idx]
                     train_y_temp[(n * i) + j] = y_train[idx]
-                print(train_y_temp.shape,j, (n * i) + j )
 
             else:
                 # resample if n > than regions number of samples
@@ -282,22 +273,17 @@ def protocol_fewshot(folder: str,
                 for j, idx in enumerate(val_indexes):
                     val_X_temp[(int(np.ceil(n * val_ratio)) * i) + j] = x_val[idx]
                     val_y_temp[(int(np.ceil(n * val_ratio)) * i) + j] = y_val[idx]
-                print(val_y_temp.shape,j, int(np.ceil(n * val_ratio)) * i +j )
 
             else:
-                print('not enough', len(x_val), int(np.ceil(n * val_ratio)))
                 # resample if n > than regions number of samples
                 for j in range(0, len(x_val)):
                     val_X_temp[(int(np.ceil(n * val_ratio)))+j] = x_val[j]
                     val_y_temp[(int(np.ceil(n * val_ratio)))+j] = y_val[j]
-                print(n,j)
                 if resample:
                     val_indexes = random.choices(range(0, len(x_val)), k=((int(np.ceil(n * val_ratio))) - len(x_val)))
-                    print('resampling', val_indexes)
                     for j, idx in enumerate(val_indexes):
                         val_X_temp[(int(np.ceil(n * val_ratio)))+len(x_val)+j] = x_val[idx]
                         val_y_temp[(int(np.ceil(n * val_ratio)))+len(x_val) + j] = y_val[idx]
-            print('s3')
 
             del x_train; del y_train; del x_val; del y_val
 
