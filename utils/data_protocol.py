@@ -25,6 +25,7 @@ REGIONS_BUCKETS = {'europe':['europe','denmark-1','denmark-2'],
                    'north-america':['north-america'],
                    'south-america':['south-america'],
                    'japan':['japan']}
+# REGIONS_BUCKETS = {'japan':['japan']}
 
 REGIONS = REGIONS_DOWNSTREAM_DATA
 LABELS = ['label_roads','label_kg','label_building','label_lc', 'label_coords']
@@ -167,8 +168,12 @@ def protocol_split(folder: str,
 def check_region_validity(folder, regions, y):
     l = []
     for i, region in enumerate(regions):
+        x_train_files = []
+        for sub_regions in REGIONS_BUCKETS[region]: 
+            x_train_files += sorted(glob(os.path.join(folder, f"{sub_regions}*train_s2.npy")))
+
         # generate multi array for region
-        x_train_files = sorted(glob(os.path.join(folder, f"{region}*train_s2.npy")))
+        # x_train_files = sorted(glob(os.path.join(folder, f"{region}*train_s2.npy")))
         y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
 
         # checks that s2 and label numpy files are consistent
@@ -346,10 +351,12 @@ def protocol_fewshot_memmapped(folder: str,
         n_train_samples = min(n,len(x_train))
         n_val_samples = min(int(np.ceil(n * val_ratio)), len(x_val))
 
-        random_train_indices= random.sample(range(0, len(x_train)), len(x_train))
-        random_val_indices  = random.sample(range(0, len(y_val)), len(y_val))
+        train_indices= random.sample(range(0, len(x_train)), n_train_samples)
+        val_indices  = random.sample(range(0, len(y_val)), n_val_samples)
 
         if y =='roads' or y=='building': # make sure training data is representative of the task
+            random_train_indices= random.sample(range(0, len(x_train)), len(x_train))
+            random_val_indices  = random.sample(range(0, len(y_val)), len(y_val))
             train_indices = []
             val_indices = []
             for i in random_train_indices:
