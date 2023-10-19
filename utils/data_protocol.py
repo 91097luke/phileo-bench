@@ -398,6 +398,7 @@ def protocol_fewshot_memmapped(folder: str,
                 for i in random_train_indices:
                     label = y_train[i]
                     if np.mean(label)>0.005:
+
                         train_indices.append(i)
                     else:
                         if random_sampler.random()>0.75:
