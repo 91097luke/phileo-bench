@@ -133,13 +133,6 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
     
     if model_name == 'GeoAware_mixer_nano':
         sd = torch.load(path_model_weights)
-        core_kwargs = get_core_encoder_kwargs(output_dim=output_channels, input_dim=input_channels, core_size='core_nano', full_unet=True)
-        model = CoreEncoderGeoPretrained(output_channels, checkpoint=sd, core_encoder_kwargs=core_kwargs, freeze_body=freeze)
-        model(test_input)
-        return model
-    
-    if model_name == 'GeoAware_mixer_nano':
-        sd = torch.load(path_model_weights)
         mixer_kwargs = get_mixer_kwargs(chw=(input_channels,input_size,input_size),output_dim=output_channels, mixer_size='mixer_nano')
         model =  MixerGeoPretrained(output_dim=output_channels, checkpoint=sd, mixer_kwargs=mixer_kwargs, freeze_body=freeze)
         model(test_input)
@@ -240,7 +233,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
             n=n_shot,
             regions=regions,
             y=downstream_task,
-            resample=False)
+            data_selection='create')
 
     elif isinstance(split_ratio, float):
         OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{split_ratio}'
@@ -284,13 +277,16 @@ if __name__ == "__main__":
     else:
         args = parser.parse_args()
 
-    # for model in ['core_unet_nano']: #,'mixer_nano','baseline_cnn','linear_vit_base']:
-    #     for n_shot in [5000]:#,500,5000,50000]:
-    #         for freeze in [True,False]:
-    #             FREEZE = freeze
-    #             args['model_name'] = model 
-    #             args['n_shot'] = n_shot
-    main(**vars(args))
+    for model_name in ['GeoAware_core_nano']: #,'mixer_nano','baseline_cnn','linear_vit_base']:
+        for n_shot in [10]:#,500,5000,50000]:
+            args['n_shot'] = n_shot
+            args['model_name'] = model_name 
+            if model_name != 'core_unet_nano':
+               for freeze in [True]:
+                    args['freeze_pretrained'] = freeze
+            else:
+                args['pretrained_model_path'] = None
+            main(**vars(args))
 
 
 

@@ -7,7 +7,8 @@ import pandas as pd
 import buteo as beo
 import numpy as np
 import random
-
+import json
+from datetime import date
 #
 from utils.training_utils import MultiArray_1D
 
@@ -303,7 +304,7 @@ def protocol_fewshot_memmapped(folder: str,
                      val_ratio: float = 0.2,
                      regions: list = None,
                      y: str = 'building',
-                     resample: bool = False,
+                     data_selection: str = 'strict',
                      ):
 
     """
@@ -314,6 +315,7 @@ def protocol_fewshot_memmapped(folder: str,
     :param val_ratio: ratio of validation set
     :param regions: geographical regions to sample
     :param y: downstream label from roads, kg, building, lc, coords
+    :param data_selection: choose from 'strict' (take train/val selection from predefined selection), 'create' (use train/val selection if exists, else create it), 'random' (create train/val selection randomly)
     :return: train, val MultiArrays
     """
 
@@ -324,6 +326,28 @@ def protocol_fewshot_memmapped(folder: str,
             assert r in list(REGIONS_BUCKETS.keys()), f"region {r} not found. Possible regions are {list(REGIONS_BUCKETS.keys())}"
     regions = check_region_validity(folder, regions, y)
 
+    assert data_selection in ['strict','create','random']
+
+    samples_loaded = False
+    if data_selection != 'random':
+        indices_path =  glob(f"indices_*_{y}_{n}.json")
+        
+        if len(indices_path) == 0:
+            if data_selection == 'create':
+                samples_dict = {}
+                print(f'creating train/val selection for task {y}, nshot={n}')
+            else:
+                raise ValueError('No file found for nshot sample selection while data_selection="strict". If you want to create fixed indices on the fly or use random train/val samples consider setting data_selction to "create" or "random"')
+        
+        elif len(indices_path) > 1:
+            raise ValueError('Multiple files found for nshot sample selection')
+        
+        else:
+            samples_loaded = True
+            print('Loading predefined train/val selection')
+            with open(indices_path[0], 'r') as f:
+                samples_dict = json.load(f)
+    
     x_train_samples = []
     y_train_samples = []
     x_val_samples = []
@@ -351,41 +375,60 @@ def protocol_fewshot_memmapped(folder: str,
         n_train_samples = min(n,len(x_train))
         n_val_samples = min(int(np.ceil(n * val_ratio)), len(x_val))
 
-        train_indices= random.sample(range(0, len(x_train)), n_train_samples)
-        val_indices  = random.sample(range(0, len(y_val)), n_val_samples)
+        if samples_loaded:
+            assert len(x_train) == samples_dict[region]['length_multi_array_train']
+            assert len(x_val) == samples_dict[region]['length_multi_array_val']
 
-        if y =='roads' or y=='building': # make sure training data is representative of the task
-            random_train_indices= random.sample(range(0, len(x_train)), len(x_train))
-            random_val_indices  = random.sample(range(0, len(y_val)), len(y_val))
-            train_indices = []
-            val_indices = []
-            for i in random_train_indices:
-                label = y_train[i]
-                if np.mean(label)>0.005:
-                    train_indices.append(i)
-                else:
-                    if random.random()>0.75:
+            train_indices = samples_dict[region]['train_indices']
+            val_indices = samples_dict[region]['val_indices']
+
+            assert len(train_indices) == n_train_samples
+            assert len(val_indices) == n_val_samples
+
+        else:
+            train_indices= random.Random(12345).sample(range(0, len(x_train)), n_train_samples)
+            val_indices  = random.Random(12345).sample(range(0, len(y_val)), n_val_samples)
+
+            random_sampler = random.Random(156)
+            if y =='roads' or y=='building': # make sure training data is representative of the task
+                random_train_indices= random.Random(12345).sample(range(0, len(x_train)), len(x_train))
+                random_val_indices  = random.Random(12345).sample(range(0, len(y_val)), len(y_val))
+                train_indices = []
+                val_indices = []
+                for i in random_train_indices:
+                    label = y_train[i]
+                    if np.mean(label)>0.005:
                         train_indices.append(i)
+                    else:
+                        if random_sampler.random()>0.75:
+                            train_indices.append(i)
 
-                if len(train_indices)==n_train_samples:
-                    break
+                    if len(train_indices)==n_train_samples:
+                        break
 
-            for i in random_val_indices:
-                label = y_val[i]
-                if np.mean(label)>0.01:
-                    val_indices.append(i)
-                else:
-                    if random.random()>0.75:
+                for i in random_val_indices:
+                    label = y_val[i]
+                    if np.mean(label)>0.01:
                         val_indices.append(i)
-                if len(val_indices)==n_val_samples:
-                    break
-
+                    else:
+                        if random_sampler.random()>0.75:
+                            val_indices.append(i)
+                    if len(val_indices)==n_val_samples:
+                        break
+        
+                samples_dict[region] = {'train_indices':train_indices, 'val_indices':val_indices, 'length_multi_array_train':len(x_train), 'length_multi_array_val':len(x_val)}
 
         x_train_samples += [x_train[i] for i in train_indices]
         y_train_samples += [y_train[i] for i in train_indices]
 
         x_val_samples += [x_val[i] for i in val_indices]
         y_val_samples += [y_val[i] for i in val_indices]
+
+    if not samples_loaded and data_selection=='create':
+        out_path = f'indices_{date.today().strftime("%d%m%Y")}_{y}_{n}.json'
+        print(f'No predefined train/val sampling was used. Saving current sampling schema in {out_path}')
+        with open(out_path, 'w') as f:
+            json.dump(samples_dict, f)
 
     return MultiArray_1D(x_train_samples), MultiArray_1D(y_train_samples), MultiArray_1D(x_val_samples), MultiArray_1D(y_val_samples)
 
