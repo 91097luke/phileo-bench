@@ -12,7 +12,7 @@ python training_script.py [--experiment_name EXPERIMENT_NAME] --model_name
                           [--lr LR] [--batch_size BATCH_SIZE] [--epochs EPOCHS] [--early_stop EARLY_STOP] [--lr_scheduler {None,reduce_on_plateau,cosine_annealing}] [--warmup] [--device DEVICE] [--num_workers NUM_WORKERS]
                           [--vis_val] --downstream_task {roads,building,lc} [--input_channels INPUT_CHANNELS] --input_size INPUT_SIZE --output_channels OUTPUT_CHANNELS
                           [--regions {None,denmark-1,denmark-2,east-africa,egypt-1,eq-guinea,europe,ghana-1,isreal-1,isreal-2,japan,nigeria,north-america,senegal,south-america,tanzania-1,tanzania-2,tanzania-3,tanzania-4,tanzania-5,uganda-1}]
-                          [--n_shot N_SHOT] [--split_ratio SPLIT_RATIO] [--augmentations]
+                          [--n_shot N_SHOT] [--split_ratio SPLIT_RATIO] [--augmentations][--pretrained_model_path][--freeze_pretrained]
 
 ```
 
@@ -24,14 +24,14 @@ python p_split_experiment.py [--experiment_name EXPERIMENT_NAME] --model_name
                           [--lr LR] [--batch_size BATCH_SIZE] [--epochs EPOCHS] [--early_stop EARLY_STOP] [--lr_scheduler {None,reduce_on_plateau,cosine_annealing}] [--warmup] [--device DEVICE] [--num_workers NUM_WORKERS]
                           [--vis_val] --downstream_task {roads,building,lc} [--input_channels INPUT_CHANNELS] --input_size INPUT_SIZE --output_channels OUTPUT_CHANNELS
                           [--regions {None,denmark-1,denmark-2,east-africa,egypt-1,eq-guinea,europe,ghana-1,isreal-1,isreal-2,japan,nigeria,north-america,senegal,south-america,tanzania-1,tanzania-2,tanzania-3,tanzania-4,tanzania-5,uganda-1}]
-                          [--n_shot N_SHOT] [--split_ratio SPLIT_RATIO] [--augmentations]
+                          [--n_shot N_SHOT] [--split_ratio SPLIT_RATIO] [--augmentations][--pretrained_model_path][--freeze_pretrained]
 
 python n_shot_experiment.py [--experiment_name EXPERIMENT_NAME] --model_name
                           {baseline_cnn,core_unet_base,core_unet_large,core_unet_huge,mixer_base,mixer_large,mixer_huge,linear_vit_base,linear_vit_larger,linear_vit_huge,autoencoder_vit_base,autoencoder_vit_large,autoencoder_vit_huge}
                           [--lr LR] [--batch_size BATCH_SIZE] [--epochs EPOCHS] [--early_stop EARLY_STOP] [--lr_scheduler {None,reduce_on_plateau,cosine_annealing}] [--warmup] [--device DEVICE] [--num_workers NUM_WORKERS]
                           [--vis_val] --downstream_task {roads,building,lc} [--input_channels INPUT_CHANNELS] --input_size INPUT_SIZE --output_channels OUTPUT_CHANNELS
                           [--regions {None,denmark-1,denmark-2,east-africa,egypt-1,eq-guinea,europe,ghana-1,isreal-1,isreal-2,japan,nigeria,north-america,senegal,south-america,tanzania-1,tanzania-2,tanzania-3,tanzania-4,tanzania-5,uganda-1}]
-                          [--n_shot N_SHOT] [--split_ratio SPLIT_RATIO] [--augmentations]
+                          [--n_shot N_SHOT] [--split_ratio SPLIT_RATIO] [--augmentations][--pretrained_model_path][--freeze_pretrained]
 ```
 
 ### Parameters
@@ -55,5 +55,7 @@ python n_shot_experiment.py [--experiment_name EXPERIMENT_NAME] --model_name
   --n_shot N_SHOT                                           Loads n-samples of the training data from specified geographic regions
   --split_ratio SPLIT_RATIO                                 Loads a percentage of the training data from specified geographic regions
   --augmentations AUGMENTATIONS                             Enables augmentations
+  --pretrained_model_path                                   Path to weights of pretrained model
+  --freeze_pretrained                                       Freeze pretrained weights and only train decoder/head
 ```
 

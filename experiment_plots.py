@@ -33,7 +33,6 @@ def main(folder, plot_title, y_logscale, x_logscale, metric, filter_on, downstre
 
         y = []
         x = []
-        print()
 
         for file in files:
 
@@ -41,6 +40,7 @@ def main(folder, plot_title, y_logscale, x_logscale, metric, filter_on, downstre
                 f = open(file)
                 data = json.load(f)
                 x.append(data['training_parameters']['train_samples'])
+                # y.append(data['training_info']['best_epoch'])
                 y.append(data['test_metrics'][metric])
 
         plt.scatter(x, y, label=m)
@@ -55,7 +55,7 @@ def main(folder, plot_title, y_logscale, x_logscale, metric, filter_on, downstre
     plt.grid()
     plt.ylabel(metric)
     plt.xlabel('n training samples')
-    plt.savefig(os.path.join(args.folder, f"test11_{metric}{task}.png"))
+    plt.savefig(os.path.join(args.folder, f"test_{metric}{task}.png"))
 
     plt.close('all')
 

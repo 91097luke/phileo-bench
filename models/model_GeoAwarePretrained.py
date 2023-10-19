@@ -5,35 +5,6 @@ from models.model_CoreCNN import CoreEncoder, CoreCNNBlock, CoreUnet
 from models.model_Mixer_versions import Mixer_tiny
 from collections import OrderedDict
 
-# class MixerGeoAware(Mixer):
-#     def __init__(self, **kwargs):
-
-#         super(MixerGeoAware, self).__init__(**kwargs)
-
-#         assert isinstance(self.embedding_dims, list), "embedding_dims must be a list."
-#         assert isinstance(self.patch_sizes, list), "patch_sizes must be a list."
-#         assert len(self.embedding_dims) == len(self.patch_sizes), "embedding_dims and patch_sizes must be the same length."
-
-#         self.head = nn.Sequential(
-#             nn.AdaptiveAvgPool2d((1, 1)),
-#             nn.Flatten(),
-#             nn.Linear(self.embedding_dims[-1], self.output_dim),
-#         )
-
-# class CoreEncoderGeoAware(CoreEncoder):
-#     def __init__(self, **kwargs):
-
-#         super(CoreEncoderGeoAware, self).__init__(**kwargs)
-
-#         assert len(self.depths) == len(self.dims), "depths and dims must have the same length."
-
-#         self.head = nn.Sequential(
-#             nn.AdaptiveAvgPool2d((1, 1)),
-#             nn.Flatten(),
-#             nn.Linear(self.dims[-1], self.output_dim),
-#         )
-    
-
 
 class MixerGeoPretrained(nn.Module):
     def __init__(self,
@@ -48,12 +19,6 @@ class MixerGeoPretrained(nn.Module):
 
         self.geomixer = Mixer(**mixer_kwargs) #MixerGeoAware(**mixer_kwargs)
         model_dict = self.geomixer.state_dict()
-    
-        # for k,v in checkpoint.items():
-        #     if not k.startswith('head.0'):
-        #         print(k) 
-        #     else:
-        #         print('HEAD',k)
 
         pretrained_dict = {k: v for k, v in checkpoint.items() if not k.startswith('head')}
 
@@ -62,17 +27,6 @@ class MixerGeoPretrained(nn.Module):
 
 
         self.geomixer.load_state_dict(model_dict)
-        
-        # self.head = nn.Sequential(
-        #     CNNBlock(mixer_kwargs['embedding_dims'][-1], mixer_kwargs['embedding_dims'][-1]),
-        #     CNNBlock(mixer_kwargs['embedding_dims'][-1], mixer_kwargs['embedding_dims'][-1]),
-        #     nn.Conv2d(mixer_kwargs['embedding_dims'][-1], output_dim, 1, padding=0),
-        # # )
-        # if self.freeze_body:
-        #     for param in self.geomixer.parameters():
-        #         print(param)
-
-        #         param.requires_grad = False
 
         if self.freeze_body:
             for name, param in self.geomixer.named_parameters():
@@ -96,19 +50,11 @@ class CoreEncoderGeoPretrained(nn.Module):
                 ):
         self.freeze_body = freeze_body
         super(CoreEncoderGeoPretrained, self).__init__()
-        # self.geocore = CoreEncoderGeoAware(**core_encoder_kwargs)
-        # self.geocore.load_state_dict(checkpoint)
         
         self.coreunet = CoreUnet(**core_encoder_kwargs)
 
         assert output_dim == core_encoder_kwargs['output_dim'], f"output dim {output_dim} but core_unet will output {core_encoder_kwargs['output_dim']}"
         
-        # self.head = nn.Sequential(
-        #     CNNBlock(core_encoder_kwargs['dims'][-1], core_encoder_kwargs['dims'][-1]),
-        #     CNNBlock(core_encoder_kwargs['dims'][-1], core_encoder_kwargs['dims'][-1]),
-        #     nn.Conv2d(core_encoder_kwargs['dims'][-1], output_dim, 1, padding=0),
-        # )
-
         unet_weights, encoder_weights = self.load_encoder_weights(checkpoint=checkpoint, unet=self.coreunet)
         self.coreunet.load_state_dict(unet_weights)
 
@@ -130,7 +76,7 @@ class CoreEncoderGeoPretrained(nn.Module):
                 raise ValueError(f"weights of pretrained encoder layer {k} are not compatible with model layer {name}")
         model_sd.update(shared_weights)
 
-        return model_sd, shared_weights #unet.load_state_dict(model_sd, strict=True)
+        return model_sd, shared_weights
 
     def forward(self, identity):
         x = self.coreunet.forward(identity)
@@ -204,7 +150,7 @@ if __name__ == '__main__':
     model = MixerGeoPretrained(output_dim=1,checkpoint=sd, mixer_kwargs=mixer_kwargs, freeze_body=True)
 
     # sd = torch.load('CoreEncoder_last_8.pt')
-    # core_kwargs = get_core_encoder_kwargs(output_dim=641, input_dim=10, core_size='core_nano')
+    # core_kwargs = get_core_encoder_kwargs(output_dim=1, input_dim=10, core_size='core_nano')
     # model = CoreEncoderGeoPretrained(1, checkpoint=sd, core_encoder_kwargs=core_kwargs)
 
 
