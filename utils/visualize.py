@@ -89,6 +89,7 @@ def visualize(x, y, y_pred=None, images=5, channel_first=False, vmin=0, vmax=1, 
 
     if save_path is not None:
         plt.savefig(save_path)
+        plt.close()
     plt.close()
 
 
@@ -211,9 +212,9 @@ def visualise_contrastive(images, pred_sim, est_sim, y, channel_first=True, save
             doy = decode_date(time_lables)
             climate = config_kg.kg_map[int(np.argmax([kg_label]))]['climate_class_str']
 
-            s1 = f"Similarity  : est = {np.round(est_sim, 2)} \n pred - {np.round(pred_sim, 2)} \n"
+            s1 = f"Similarity  : est = {np.round(est_sim[i, j], 2)} \n pred = {np.round(pred_sim[i, j], 2)} \n"
 
-            s2 = f"Label: lat-long = {np.round(lat, 2), np.round(long, 2)} \n climate - {climate} \n DoY - {doy}"
+            s2 = f"Label: lat-long = {np.round(lat, 2), np.round(long, 2)} \n climate = {climate} \n DoY = {doy}"
 
             plt.text(25, 25, s1, fontsize=18, bbox=dict(fill=True))
 
@@ -225,6 +226,7 @@ def visualise_contrastive(images, pred_sim, est_sim, y, channel_first=True, save
 
         plt.grid()
         plt.savefig(save_path)
+
 
 def visualize_arcface(x, y, save_path=None):
     X_embedded = TSNE(n_components=2).fit_transform(x)
@@ -240,3 +242,10 @@ def visualize_arcface(x, y, save_path=None):
         plt.savefig(save_path)
     plt.close()
 
+# def main():
+#     s2 = np.load('/phileo_data/mini_foundation/mini_foundation_patches_np/patches_labeled/10_points_filtered_22_10/S2A_MSIL2A_20221028T184501_N0400_R070_T11SLA_20221028T222756_val_s2.npy')
+#     t = beo.raster_to_metadata('/phileo_data/mini_foundation/mini_foundation_tifs/10_points_filtered_22_10/S2A_MSIL2A_20221006T075811_N0400_R035_T36MUV_20221006T120858_label_terrain.tif')
+#     print()
+#
+# if __name__ == '__main__':
+#     main()

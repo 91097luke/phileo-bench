@@ -81,16 +81,21 @@ def get_testset(folder: str,
     return x_test, y_test
 
 
-def protocol_minifoundation(folder_leo: str, folder_road:str, y:str):
+def protocol_minifoundation(folder: str, y:str):
     """
     Loads all the data from the data folder.
     """
 
-    x_train = sorted(glob(os.path.join(folder_leo, f"*/*_s2.npy")))
+    x_train = sorted(glob(os.path.join(folder, f"*/*train_s2.npy")))
     y_train = [f_name.replace('s2', f'label_{y}') for f_name in x_train]
 
-    x_val = sorted(glob(os.path.join(folder_road, f"*test_s2.npy")))
-    y_val = [f_name.replace('s2', f'label_{y}') for f_name in x_val]
+    x_val = []
+    y_val = []
+    for i in range(int(len(x_train)*0.05)):
+        j = random.randint(0, len(x_train)-1)
+        x_val.append(x_train[j])
+        y_val.append(y_train[j])
+        del x_train[j]; del y_train[j]
 
     x_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_train], shuffle=True)
     y_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_train], shuffle=True)

@@ -11,7 +11,7 @@ import argparse
 import sys; sys.path.append("../")
 
 from models.model_Baseline import BaselineNet
-from models.model_CoreCNN_versions import CoreUnet_base, CoreUnet_large, CoreUnet_huge
+from models.model_CoreCNN_versions import CoreUnet_base, CoreUnet_large, CoreUnet_huge, Core_nano
 from models.model_Mixer_versions import Mixer_base, Mixer_large, Mixer_huge
 from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, LinearViT_huge
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
@@ -21,7 +21,7 @@ from utils import data_protocol
 from utils import load_data
 from utils import training_loops
 
-CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge', 'resnet50', 'resnet18']
+CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge', 'resnet50', 'resnet18', 'core_encoder_nano']
 MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge']
@@ -60,7 +60,7 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
 
     elif model_name in VIT_LIST:
-        if downstream_task == 'roads' or downstream_task == 'roads':
+        if downstream_task == 'roads' or downstream_task == 'building':
             trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
@@ -72,7 +72,6 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                        train_loader=dl_train,
                                                        val_loader=dl_val, test_loader=dl_test, name=NAME,
                                                        out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-
 
     return trainer
 
@@ -86,6 +85,12 @@ def get_models(model_name, input_channels, output_channels, input_size):
         return CoreUnet_large(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_unet_huge':
         return CoreUnet_huge(input_dim=input_channels, output_dim=output_channels)
+    elif model_name == 'core_encoder_nano':
+        model = Core_nano(input_dim=input_channels, output_dim=output_channels)
+        sd = torch.load('/home/lcamilleri/git_repos/phileo-testbed/trained_models/contrastive/18102023_CoreEncoder_geo_reduce_on_plateau/CoreEncoder_ckpt.pt')
+        model.load_state_dict(sd)
+        return model
+        # return Core_nano(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'mixer_base':
         return Mixer_base(chw=(input_channels, input_size, input_size),
                           output_dim=output_channels)
@@ -153,6 +158,7 @@ def get_args():
     parser.add_argument('--augmentations', action="store_true", help='enables augmentations')
     return parser
 
+
 def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16,
          device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), early_stop:int=25, epochs:int=250,
          input_channels:int=10, input_size:int=128, lr:float=0.001, lr_scheduler:str=None, n_shot:int=None,
@@ -182,8 +188,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         lr = lr / 100000  # for warmup start
 
     if downstream_task == 'kg' or downstream_task == 'geo':
-        x_train, y_train, x_val, y_val = data_protocol.protocol_minifoundation(folder_road='/phileo_data/downstream/downstream_dataset_patches_np/',
-                                                                               folder_leo='/phileo_data/mini_foundation/mini_foundation_patches_np/patches_labeled/',
+        x_train, y_train, x_val, y_val = data_protocol.protocol_minifoundation(folder='/phileo_data/mini_foundation/mini_foundation_patches_np/patches_labeled/',
                                                                                y=downstream_task)
 
     else:
