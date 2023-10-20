@@ -219,7 +219,7 @@ class TrainBase():
                 outputs = self.model(images)
                 self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(), outputs.detach().cpu().numpy(), name=f'/val_images/val_{epoch}')
 
-            return j, val_loss
+            return j, val_loss/(j+1)
 
     def save_ckpt(self, epoch, val_loss):
         model_sd = self.model.state_dict().copy()

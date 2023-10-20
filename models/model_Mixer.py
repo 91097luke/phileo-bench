@@ -272,7 +272,7 @@ class Mixer(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, identity):
+    def forward_body(self, identity):
         skip = self.stem(identity)
         skip = torch.nn.functional.pad(skip, (0, 0, self.class_boundary, 0), mode="constant", value=0.0)
 
@@ -290,13 +290,16 @@ class Mixer(nn.Module):
 
         x = x[:, :, self.class_boundary:, :]
 
+        return x
+
+    def forward(self, identity):
+        x = self.forward_body(identity)
         x = self.head(x)
 
         if self.softmax_output:
             x = torch.softmax(x, dim=1)
 
         return x
-
 
 if __name__ == "__main__":
     from torchinfo import summary

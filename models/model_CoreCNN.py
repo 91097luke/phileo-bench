@@ -228,8 +228,7 @@ class CoreUnet(nn.Module):
             CoreCNNBlock(self.dims[0], self.dims[0], norm=self.norm, activation=self.activation, padding=self.padding),
             nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
         )
-
-    def forward(self, x):
+    def forward_body(self, x):
         skip_connections = []
         
         x = self.stem(x)
@@ -242,7 +241,11 @@ class CoreUnet(nn.Module):
         for block in self.decoder_blocks:
             skip = skip_connections.pop()
             x = block(x, skip)
+        return x
 
+    def forward(self, x):
+        
+        x = self.forward_body(x)
         x = self.head(x)
 
         return x
@@ -292,13 +295,17 @@ class CoreEncoder(nn.Module):
             nn.Flatten(),
             nn.Linear(self.dims[-1], self.output_dim),
         )
-
-    def forward(self, x):
+    def forward_body(self, x):
         x = self.stem(x)
 
         for block in self.encoder_blocks:
             x, _ = block(x)
+        
+        return x
 
+    def forward(self, x):
+
+        x = self.forward_body(x)
         x = self.head(x)
 
         return x
