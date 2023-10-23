@@ -11,7 +11,7 @@ import argparse
 import sys; sys.path.append("../")
 
 from models.model_Baseline import BaselineNet
-from models.model_CoreCNN_versions import CoreUnet_base, CoreUnet_large, CoreUnet_huge, Core_nano
+from models.model_CoreCNN_versions import CoreUnet_base, CoreUnet_large, CoreUnet_huge, Core_nano, Core_nano_multihead
 from models.model_Mixer_versions import Mixer_base, Mixer_large, Mixer_huge
 from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, LinearViT_huge
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
@@ -21,7 +21,7 @@ from utils import data_protocol
 from utils import load_data
 from utils import training_loops
 
-CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge', 'resnet50', 'resnet18', 'core_encoder_nano']
+CNN_LIST = ['baseline_cnn', 'core_unet_base', 'core_unet_large', 'core_unet_huge', 'resnet50', 'resnet18', 'core_encoder_nano', 'core_nano_multihead']
 MIXER_LIST = ['mixer_base', 'mixer_large', 'mixer_huge']
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge']
@@ -86,10 +86,9 @@ def get_models(model_name, input_channels, output_channels, input_size):
     elif model_name == 'core_unet_huge':
         return CoreUnet_huge(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_encoder_nano':
-        model = Core_nano(input_dim=input_channels, output_dim=output_channels)
-        sd = torch.load('/home/lcamilleri/git_repos/phileo-testbed/trained_models/contrastive/18102023_CoreEncoder_geo_reduce_on_plateau/CoreEncoder_ckpt.pt')
-        model.load_state_dict(sd)
-        return model
+        return Core_nano(input_dim=input_channels, output_dim=output_channels)
+    elif model_name == 'core_nano_multihead':
+        return Core_nano_multihead(input_dim=input_channels, output_dim=output_channels)
         # return Core_nano(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'mixer_base':
         return Mixer_base(chw=(input_channels, input_size, input_size),

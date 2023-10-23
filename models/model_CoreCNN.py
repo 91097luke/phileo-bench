@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from utils.training_utils import get_activation, get_normalization, SE_Block
+from torch.nn import functional as F
 
 
 class CoreCNNBlock(nn.Module):
@@ -302,6 +303,84 @@ class CoreEncoder(nn.Module):
         x = self.head(x)
 
         return x
+
+class CoreEncoderMultiHead(nn.Module):
+    def __init__(self, *,
+        input_dim=10,
+        output_dim=1,
+        depths=None,
+        dims=None,
+        activation="relu",
+        norm="batch",
+        padding="same",
+    ):
+        super(CoreEncoderMultiHead, self).__init__()
+
+        self.depths = [3, 3, 9, 3] if depths is None else depths
+        self.dims = [96, 192, 384, 768] if dims is None else dims
+        self.output_dim = output_dim
+        self.input_dim = input_dim
+        self.activation = activation
+        self.norm = norm
+        self.padding = padding
+
+        assert len(self.depths) == len(self.dims), "depths and dims must have the same length."
+
+        self.stem = CoreCNNBlock(self.input_dim, self.dims[0], norm=self.norm, activation=self.activation, padding=self.padding)
+
+        self.encoder_blocks = []
+        for i in range(len(self.depths)):
+            encoder_block = CoreEncoderBlock(
+                self.depths[i],
+                self.dims[i - 1] if i > 0 else self.dims[0],
+                self.dims[i],
+                norm=self.norm,
+                activation=self.activation,
+                padding=self.padding,
+            )
+            self.encoder_blocks.append(encoder_block)
+
+        self.encoder_blocks = nn.ModuleList(self.encoder_blocks)
+
+        self.head_1 = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(self.dims[-1], self.output_dim),
+        )
+
+        self.head_2 = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(self.dims[-1], self.output_dim),
+        )
+
+        self.head_3 = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(self.dims[-1], self.output_dim),
+        )
+
+        self.head_4 = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(self.dims[-1], self.output_dim),
+        )
+
+    def forward(self, x):
+        x = self.stem(x)
+
+        for block in self.encoder_blocks:
+            x, _ = block(x)
+
+        x_1 = self.head_1(x)
+        x_2 = self.head_1(x)
+        x_3 = self.head_1(x)
+
+        x_1 = F.normalize(x_1, p=2, dim=1)
+        x_2 = F.normalize(x_2, p=2, dim=1)
+        x_3 = F.normalize(x_3, p=2, dim=1)
+
+        return x_1, x_2, x_3
 
 
 if __name__ == "__main__":

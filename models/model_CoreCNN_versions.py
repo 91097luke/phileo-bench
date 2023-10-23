@@ -1,4 +1,4 @@
-from models.model_CoreCNN import CoreUnet, CoreEncoder
+from models.model_CoreCNN import CoreUnet, CoreEncoder, CoreEncoderMultiHead
 
 
 def CoreUnet_atto(**kwargs):
@@ -179,6 +179,21 @@ def Core_nano(**kwargs):
     Estimated Total Size (MB): 3536.26
     """
     model = CoreEncoder(depths=[2, 2, 8, 2], dims=[80, 160, 320, 640], **kwargs)
+    return model
+
+def Core_nano_multihead(**kwargs):
+    """
+    Total params: 17,379,041
+    Trainable params: 17,379,041
+    Non-trainable params: 0
+    Total mult-adds (G): 125.99
+    =========================================================================================================
+    Input size (MB): 5.24
+    Forward/backward pass size (MB): 3461.50
+    Params size (MB): 69.52
+    Estimated Total Size (MB): 3536.26
+    """
+    model = CoreEncoderMultiHead(depths=[2, 2, 8, 2], dims=[80, 160, 320, 640], **kwargs)
     return model
 
 def Core_tiny(**kwargs):

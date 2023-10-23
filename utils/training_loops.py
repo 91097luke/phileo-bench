@@ -19,7 +19,7 @@ from torch.cuda.amp import GradScaler, autocast
 import numpy as np
 import json
 from pytorch_metric_learning import losses
-from torchmetrics.functional.pairwise import pairwise_cosine_similarity
+from torchmetrics.functional.pairwise import pairwise_cosine_similarity, pairwise_euclidean_distance
 
 
 # utils
@@ -164,7 +164,7 @@ class TrainBase():
                 if len(t_images) < images.shape[0]:
                     j = random.randint(0, images.shape[0] - 1)
                     t_images.append(images[j].detach().cpu())
-                    t_outputs.append(outputs[j].detach().cpu())
+                    t_outputs.append(torch.stack([outputs[0][j].detach().cpu(), outputs[1][j].detach().cpu(), outputs[2][j].detach().cpu()]))
                     t_labels.append(labels[j].detach().cpu())
 
             if self.visualise_validation and (i % 10000) == 0 and i != 0: # 10000
@@ -213,9 +213,10 @@ class TrainBase():
                     f"lr": self.optimizer.param_groups[0]['lr']})
 
                 if self.visualise_validation:
-                    val_images.append(images[0].detach().cpu())
-                    val_outputs.append(outputs[0].detach().cpu())
-                    val_labels.append(labels[0].detach().cpu())
+                    j = random.randint(0, images.shape[0] - 1)
+                    val_images.append(images[j].detach().cpu())
+                    val_outputs.append(torch.stack([outputs[0][j].detach().cpu(), outputs[1][j].detach().cpu(), outputs[2][j].detach().cpu()]))
+                    val_labels.append(labels[j].detach().cpu())
 
             if self.visualise_validation:
                 val_images = torch.stack(val_images)
@@ -286,7 +287,6 @@ class TrainBase():
                 s = self.scheduler
                 self.warmup = False
                 print('Warmup finished')
-
 
             i, train_loss = self.t_loop(epoch, s)
             j, val_loss = self.v_loop(epoch)
@@ -463,35 +463,20 @@ class TrainContrastive(TrainBase):
 
     def kg_similarity(self, kg):
 
-        climate_codes = torch.zeros((kg.shape[0], 6))
-        precipitation_codes = torch.zeros((kg.shape[0], 6))
-        temperature_codes = torch.zeros((kg.shape[0], 8))
         codes = torch.zeros((kg.shape[0], 20))
-
-        climate_sim = torch.zeros((kg.shape[0], kg.shape[0]))
-        precipitation_sim = torch.zeros((kg.shape[0], kg.shape[0]))
-        temperature_sim = torch.zeros((kg.shape[0], kg.shape[0]))
+        sea_mask = torch.zeros((kg.shape[0], 2))
 
         for i, kg_label in enumerate(kg):
-            # climate_codes[i] = torch.FloatTensor(config_kg.kg_map[int(torch.argmax(kg_label))]['climate_code'])
-            # precipitation_codes[i] = torch.FloatTensor(config_kg.kg_map[int(torch.argmax(kg_label))]['precipitation_code'])
-            # temperature_codes[i] = torch.FloatTensor(config_kg.kg_map[int(torch.argmax(kg_label))]['temperature_code'])
             codes[i] = torch.FloatTensor(config_kg.kg_map[int(torch.argmax(kg_label))]['climate_code'] +
                                          config_kg.kg_map[int(torch.argmax(kg_label))]['precipitation_code'] +
                                          config_kg.kg_map[int(torch.argmax(kg_label))]['temperature_code'])
 
-        # for i in range(kg.shape[0]):
-        #     for j in range(kg.shape[0]):
-        #         climate_sim[i, j] = binary_jaccard_index(preds=climate_codes[i], target=climate_codes[j])
-        #         precipitation_sim[i, j] = binary_jaccard_index(preds=precipitation_codes[i], target=precipitation_codes[j])
-        #         temperature_sim[i, j] = binary_jaccard_index(preds=temperature_codes[i], target=temperature_codes[j])
-
+            if config_kg.kg_map[int(torch.argmax(kg_label))]['climate_code'] == [1, 0, 0, 0, 0, 0]:
+                sea_mask[i] = torch.FloatTensor([0, 1])
 
         similarity = pairwise_cosine_similarity(codes, zero_diagonal=False)
-
-        # similarity = (climate_sim + precipitation_sim + temperature_sim)/3
-        # similarity = torch.nan_to_num(similarity, nan=1) # self similarity calculation can return nan if vector is all zeros
-        return similarity
+        sea_mask = 1 - pairwise_euclidean_distance(sea_mask, zero_diagonal=False)
+        return (similarity + 1)/2, sea_mask
 
     def coords_similarity(self, coords):
         lat_enc, long_sin, long_cos = coords[:, 0], (2 * coords[:, 1] - 1), (2 * coords[:, 2] - 1)
@@ -499,12 +484,12 @@ class TrainContrastive(TrainBase):
 
         cos_dif = torch.outer(long_cos, long_cos) + torch.outer(long_sin, long_sin)
 
-        return torch.outer(torch.sin(lat_r), torch.sin(lat_r)) * cos_dif + torch.outer(torch.cos(lat_r),
-                                                                                       torch.cos(lat_r))
+        return (torch.outer(torch.sin(lat_r), torch.sin(lat_r)) * cos_dif + torch.outer(torch.cos(lat_r),
+                                                                                       torch.cos(lat_r)) + 1)/2
 
     def date_similarity(self, date):
         sin, cos = (2 * date[:, 0] - 1), (2 * date[:, 1] - 1)
-        return torch.outer(cos, cos) + torch.outer(sin, sin)
+        return (torch.outer(cos, cos) + torch.outer(sin, sin) + 1)/2
 
     def get_similarity_labels(self, labels):
 
@@ -518,25 +503,56 @@ class TrainContrastive(TrainBase):
 
         return ((0.4*kg_similarity + 0.4*coords_similarity + 0.2*date_similarity) + 1) / 2 # similarity range: 0 (dissimialr) - 1 (similar)
 
-    def contrastive_criterion(self, embeddings, y, margin = 0.05):
-        similarity = pairwise_cosine_similarity(embeddings, zero_diagonal=False)
+    def get_similarity_labels_mh(self, labels):
 
+        kg_label = labels[:, :31]
+        co_ordinate_labels = labels[:, 31:34]
+        date_lables = labels[:, 34:]
+
+        kg_similarity, sea_mask = self.kg_similarity(kg_label)
+        coords_similarity = self.coords_similarity(co_ordinate_labels)
+        date_similarity = self.date_similarity(date_lables)
+
+        # similarity is set to zero when comparing sea patch with other climate zones
+        return kg_similarity * sea_mask, coords_similarity * sea_mask, date_similarity * sea_mask
+
+    def loss(self, y, similarity, margin):
         loss = torch.sqrt(torch.maximum(torch.zeros(y.shape), torch.square(y - similarity) - (margin ** 2)))
         loss = torch.triu(loss, diagonal=1)
+        return loss.sum() / torch.count_nonzero(loss)
 
-        return loss.sum() / embeddings.shape[0]
+    def contrastive_criterion(self, embeddings, y, margin = 0.05):
+        similarity = pairwise_cosine_similarity(embeddings, zero_diagonal=False)
+        return self.loss(y,similarity, margin)
+
+    def contrastive_criterion_mh(self, embeddings, y_kg, y_coords, y_date, margin = 0.05):
+        similarity_kg = pairwise_cosine_similarity(embeddings[0], zero_diagonal=False)
+        similarity_coords = pairwise_cosine_similarity(embeddings[1], zero_diagonal=False)
+        similarity_date = pairwise_cosine_similarity(embeddings[2], zero_diagonal=False)
+
+        loss_kg = self.loss(y_kg, similarity_kg, margin)
+        loss_coords = self.loss(y_coords, similarity_coords, margin)
+        loss_date = self.loss(y_date, similarity_date, margin)
+
+        return 0.4*loss_kg + 0.4*loss_coords + 0.2*loss_date
 
     def get_loss(self, images, labels):
         outputs = self.model(images)
-        outputs = F.normalize(outputs, p=2, dim=1)
-        y = self.get_similarity_labels(labels)
-        loss = self.contrastive_criterion(outputs, y)
+
+        y_kg, y_coords, y_date = self.get_similarity_labels_mh(labels)
+        loss = self.contrastive_criterion_mh(outputs, y_kg, y_coords, y_date)
         return loss, outputs
 
     def val_visualize(self, images, labels, outputs, name):
         outputs = torch.from_numpy(outputs)
+
+        kg_similarity, coords_similarity, date_similarity = self.get_similarity_labels_mh(torch.from_numpy(labels).to(self.device))
+        est_sim =  (kg_similarity + coords_similarity + date_similarity)/3
+        kg_similarity, coords_similarity, date_similarity = pairwise_cosine_similarity(outputs[:, 0], zero_diagonal=False).detach().cpu().numpy(), pairwise_cosine_similarity(outputs[:, 1], zero_diagonal=False).detach().cpu().numpy(), pairwise_cosine_similarity(outputs[:, 2], zero_diagonal=False).detach().cpu().numpy(),
+        pred_sim = (kg_similarity + coords_similarity + date_similarity)/3
+
         visualize.visualise_contrastive(y=labels, images=images,
-                                        est_sim=self.get_similarity_labels(torch.from_numpy(labels).to(self.device)).detach().cpu().numpy(),
-                                        pred_sim=pairwise_cosine_similarity(outputs, zero_diagonal=False).detach().cpu().numpy(),
+                                        est_sim=est_sim.detach().cpu().numpy(),
+                                        pred_sim=pred_sim,
                                         save_path=f"{self.out_folder}/{name}.png")
 
