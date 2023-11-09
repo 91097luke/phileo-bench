@@ -16,20 +16,25 @@ def get_args():
     parser.add_argument('--y_logscale', type=bool, required=False, default=True)
     parser.add_argument('--x_logscale', type=bool, required=False, default=False)
     parser.add_argument('--metric', type=str, required=False, default='acc')
-    parser.add_argument('--filter_on', type=str, nargs='*', required=False, default=['CoreUnet','Pretrained_frozen','Pretrained_unfrozen'])
+    parser.add_argument('--filter_on', type=str, nargs='*', required=False, default=['CoreUnet','Pretrained_frozen','Pretrained_unfrozen', 'Pretrained_contrastive_frozen'])
     parser.add_argument('--downstream_task', type=str, required=False, default=None)
 
     return parser
 
-def main(folder, plot_title, y_logscale, x_logscale, metric, filter_on, downstream_task):
+def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=False, x_logscale=False): # plot_title, y_logscale, x_logscale
     fig = plt.figure(figsize=(8,5))
 
-    mode = args.filter_on
-    task = f"_{args.downstream_task}"  if args.downstream_task is not None else '' #'_building_' or '_lc_'
-    metric = args.metric #'mse' or 'acc'
+    mode = filter_on
+    task = f"_{downstream_task}"
+    metric = metric #'mse' or 'acc'
+
+    n_shots = [50, 500, 5000, 50000, 100000, 200000]
+
 
     for m in mode:
-        files = glob.glob(f"{folder}/*{m}*/*.json")
+        files = []
+        for n_shot in n_shots:
+            files.extend(glob.glob(f"{folder}/*{m}*_{n_shot}/*.json"))
 
         y = []
         x = []
@@ -39,29 +44,35 @@ def main(folder, plot_title, y_logscale, x_logscale, metric, filter_on, downstre
             if task in file:
                 f = open(file)
                 data = json.load(f)
-                x.append(data['training_parameters']['train_samples'])
+                x.append(data['training_parameters']['n_shot'])
                 # y.append(data['training_info']['best_epoch'])
                 y.append(data['test_metrics'][metric])
 
-        plt.scatter(x, y, label=m)
+        plt.scatter(x, y, label=m, alpha=0.8)
 
 
     plt.legend()
-    plt.title(args.plot_title)
-    if args.y_logscale:
+    plt.title(plot_title)
+    if y_logscale:
         plt.yscale("log")
-    if args.x_logscale:
+    if x_logscale:
         plt.xscale("log")
     plt.grid()
     plt.ylabel(metric)
     plt.xlabel('n training samples')
-    plt.savefig(os.path.join(args.folder, f"test_{metric}{task}.png"))
+    plt.savefig(os.path.join(folder, f"test_{metric}{task}.png"))
 
     plt.close('all')
 
 if __name__ == '__main__':
-    parser = get_args()
-    args = parser.parse_args()
-    main(**vars(args))
+    # parser = get_args()
+    # args = parser.parse_args()
+    # main(**vars(args))
+
+    main(folder=f'/phileo_data/experiments/n_shots/lc/', plot_title=f'nshot experiment on lc downstream task',
+                          filter_on=['CoreUnet', 'Pretrained_frozen', 'Pretrained_unfrozen',
+                                     'Pretrained_contrastive_frozen', 'Pretrained_contrastive_unfrozen',
+                                     'AutoEncoderViTPretrained_unfrozen', 'AutoEncoderViTPretrained_frozen'],
+                          downstream_task='lc', metric='acc', y_logscale=False, x_logscale=False)
 
 

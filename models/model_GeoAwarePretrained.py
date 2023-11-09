@@ -24,8 +24,6 @@ class MixerGeoPretrained(nn.Module):
 
         model_dict.update(pretrained_dict) 
 
-
-
         self.geomixer.load_state_dict(model_dict)
 
         if self.freeze_body:
@@ -39,7 +37,6 @@ class MixerGeoPretrained(nn.Module):
         # x = self.head(x)
         return x
     
-
 
 class CoreEncoderGeoPretrained(nn.Module):
     def __init__(self,

@@ -219,7 +219,7 @@ class TrainBase():
                 outputs = self.model(images)
                 self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(), outputs.detach().cpu().numpy(), name=f'/val_images/val_{epoch}')
 
-            return j, val_loss/(j+1)
+            return j, val_loss
 
     def save_ckpt(self, epoch, val_loss):
         model_sd = self.model.state_dict().copy()
@@ -294,7 +294,7 @@ class TrainBase():
                 s.step(self.vl[-1])
 
             #save check point
-            self.save_ckpt(epoch, val_loss)
+            self.save_ckpt(epoch, val_loss / (j + 1))
 
             # visualize loss & lr curves
             self.plot_curves(epoch)

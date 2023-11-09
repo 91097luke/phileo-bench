@@ -16,6 +16,7 @@ from models.model_Mixer_versions import Mixer_nano, Mixer_tiny, Mixer_base, Mixe
 from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, LinearViT_huge
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
 from models.model_GeoAwarePretrained import MixerGeoPretrained, get_mixer_kwargs, get_core_encoder_kwargs, CoreEncoderGeoPretrained
+from models.model_AutoEncoderViTPretrained import AutoEncoderViTPretrained
 
 from utils import data_protocol
 from utils import load_data
@@ -26,7 +27,10 @@ CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 
 MIXER_LIST = ['mixer_nano', 'mixer_tiny', 'mixer_base', 'mixer_large', 'mixer_huge']
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge']
-CNN_PRETRAINED_LIST = ['GeoAware_core_nano','GeoAware_core_tiny','GeoAware_mixer_nano','GeoAware_mixer_tiny']
+CNN_PRETRAINED_LIST = ['GeoAware_core_nano', 'GeoAware_core_tiny', 'GeoAware_mixer_nano', 'GeoAware_mixer_tiny',
+                       'GeoAware_contrastive_core_nano', 'GeoAware_basic_core_nano']
+
+VIT_PRETRAINED_LIST = ['AutoEncoderVitPretrained']
 
 MODEL_LIST = CNN_LIST + MIXER_LIST + VIT_LIST + CNN_PRETRAINED_LIST
 
@@ -47,8 +51,7 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                     val_loader=dl_val, test_loader=dl_test, name=NAME,
                                                     out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
 
-
-    elif model_name in VIT_LIST:
+    elif model_name in (VIT_LIST + VIT_PRETRAINED_LIST):
         if downstream_task == 'roads' or downstream_task == 'building':
             trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
@@ -61,7 +64,6 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                        train_loader=dl_train,
                                                        val_loader=dl_val, test_loader=dl_test, name=NAME,
                                                        out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
-
 
     return trainer
 
@@ -113,14 +115,22 @@ def get_models(model_name, input_channels, output_channels, input_size):
         return AutoencoderViT_huge(chw=(input_channels, input_size, input_size),
                                    output_dim=output_channels)
 
-def get_models_pretrained(model_name, input_channels, output_channels, input_size, path_model_weights=None, freeze=False):
+
+def get_models_pretrained(model_name, input_channels, output_channels, input_size, path_model_weights=None, freeze=False, device='cuda'):
     
     test_input = torch.rand((2,input_channels,input_size,input_size))
 
-    if model_name == 'GeoAware_core_nano':
+    if model_name == 'GeoAware_core_nano' or model_name == 'GeoAware_contrastive_core_nano' or model_name == 'GeoAware_basic_core_nano':
         sd = torch.load(path_model_weights)
         core_kwargs = get_core_encoder_kwargs(output_dim=output_channels, input_dim=input_channels, core_size='core_nano', full_unet=True)
         model = CoreEncoderGeoPretrained(output_channels, checkpoint=sd, core_encoder_kwargs=core_kwargs, freeze_body=freeze)
+        model(test_input)
+        return model
+
+    if model_name == 'AutoEncoderVitPretrained':
+        sd = torch.load(path_model_weights, map_location=device)
+        model = AutoEncoderViTPretrained(chw=(input_channels, input_size, input_size),
+                                         output_dim=output_channels, checkpoint=sd, freeze_body=freeze)
         model(test_input)
         return model
     
@@ -141,7 +151,7 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
     if model_name == 'GeoAware_mixer_tiny':
         sd = torch.load(path_model_weights)
         mixer_kwargs = get_mixer_kwargs(chw=(input_channels,input_size,input_size),output_dim=output_channels, mixer_size='mixer_tiny')
-        model =  MixerGeoPretrained(output_dim=output_channels, checkpoint=sd, mixer_kwargs=mixer_kwargs, freeze_body=freeze)
+        model = MixerGeoPretrained(output_dim=output_channels, checkpoint=sd, mixer_kwargs=mixer_kwargs, freeze_body=freeze)
         model(test_input)
         return model 
 
@@ -206,10 +216,13 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         lc = False
 
     if pretrained_model_path is not None:
-        assert model_name in CNN_PRETRAINED_LIST, f"Pretrained weights were given but model {model_name} not found in list of pretrained models: {CNN_PRETRAINED_LIST}"
+        assert model_name in (CNN_PRETRAINED_LIST + VIT_PRETRAINED_LIST), f"Pretrained weights were given but model {model_name} not found in list of pretrained models: {(CNN_PRETRAINED_LIST + VIT_PRETRAINED_LIST)}"
         assert freeze_pretrained is not None, f"When supplying a pretrained model 'freeze_pretrained' must be either True or False"
         model = get_models_pretrained(model_name, input_channels, output_channels, input_size, path_model_weights=pretrained_model_path, freeze=freeze_pretrained)
-        NAME = model.__class__.__name__ +'_frozen' if freeze_pretrained else model.__class__.__name__ +'_unfrozen'
+        if model_name == 'GeoAware_contrastive_core_nano':
+            NAME = model.__class__.__name__ +'_contrastive_frozen' if freeze_pretrained else model.__class__.__name__ +'_contrastive_unfrozen'
+        else:
+            NAME = model.__class__.__name__ + '_frozen' if freeze_pretrained else model.__class__.__name__ + '_unfrozen'
 
     else:
         if freeze_pretrained:
@@ -218,9 +231,9 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         NAME = model.__class__.__name__
 
 
-    OUTPUT_FOLDER = f'trained_models/{experiment_name}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
+    OUTPUT_FOLDER = f'/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
     if lr_scheduler is not None:
-        OUTPUT_FOLDER = f'trained_models/{experiment_name}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
+        OUTPUT_FOLDER = f'/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
 
     if warmup:
         lr = lr / 100000  # for warmup start
@@ -277,16 +290,26 @@ if __name__ == "__main__":
     else:
         args = parser.parse_args()
 
-    for model_name in ['GeoAware_core_nano']: #,'mixer_nano','baseline_cnn','linear_vit_base']:
-        for n_shot in [10]:#,500,5000,50000]:
-            args['n_shot'] = n_shot
-            args['model_name'] = model_name 
-            if model_name != 'core_unet_nano':
-               for freeze in [True]:
-                    args['freeze_pretrained'] = freeze
-            else:
-                args['pretrained_model_path'] = None
-            main(**vars(args))
+    main(**vars(args))
+
+    # for downstream_task in ['lc', 'roads', 'building']:
+    #     args['downstream_task'] = downstream_task
+    #     for n_shot in [5, 10, 50, 500, 5000, 50000, 100000, 200000]:
+    #         for model_name in ['core_unet_nano', 'GeoAware_contrasive_core_nano', 'GeoAware_core_nano']: #,'mixer_nano','baseline_cnn','linear_vit_base']:
+    #             args['n_shot'] = n_shot
+    #             args['model_name'] = model_name
+    #
+    #             if model_name == 'GeoAware_contrasive_core_nano':
+    #                 args['pretrained_model_path'] = '/home/lcamilleri/git_repos/Phileo-contrastive-geographical-expert/trained_models/contrastive/27102023_CoreEncoderMultiHead_geo_reduce_on_plateau/CoreEncoderMultiHead_best.pt'
+    #             elif model_name == 'GeoAware_contrasive_core_nano':
+    #                 args['pretrained_model_path'] = '/phileo_data/GeoAware_results/trained_models/12102023_CoreEncoder_LEO_geoMvMF_augm/CoreEncoder_last_19.pt'
+    #             if model_name != 'core_unet_nano':
+    #                for freeze in [True, False]:
+    #                     args['freeze_pretrained'] = freeze
+    #                     main(**vars(args))
+    #             else:
+    #                 args['pretrained_model_path'] = None
+    #                 main(**vars(args))
 
 
 
