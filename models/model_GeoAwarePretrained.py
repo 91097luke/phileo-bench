@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 from models.model_Mixer import Mixer, CNNBlock
-from models.model_CoreCNN import CoreEncoder, CoreCNNBlock, CoreUnet
+from models.model_CoreCNN import CoreEncoder, CoreCNNBlock, CoreUnet, CoreUnet_combined
+from models.model_FeatureExtracter import GeoPretrainedFeatureExtractor
 from models.model_Mixer_versions import Mixer_tiny
 from collections import OrderedDict
 
@@ -79,8 +80,59 @@ class CoreEncoderGeoPretrained(nn.Module):
         x = self.coreunet.forward(identity)
         # x = self.head(x)
         return x
-    
 
+
+class CoreEncoderGeoPretrained_combined(nn.Module):
+    def __init__(self,
+                 output_dim,
+                 checkpoint_1,
+                 checkpoint_2,
+                 core_encoder_kwargs,
+                 freeze_body=True,
+                 ):
+        self.freeze_body = freeze_body
+        super(CoreEncoderGeoPretrained_combined, self).__init__()
+
+        self.coreunet_combined = CoreUnet_combined(**core_encoder_kwargs)
+
+        assert output_dim == core_encoder_kwargs[
+            'output_dim'], f"output dim {output_dim} but core_unet will output {core_encoder_kwargs['output_dim']}"
+
+        unet_weights, encoder_weights = self.load_encoder_weights(checkpoint_1=checkpoint_1, checkpoint_2=checkpoint_2,
+                                                                  unet=self.coreunet_combined)
+        self.coreunet_combined.load_state_dict(unet_weights)
+
+        if self.freeze_body:
+            for name, param in self.coreunet_combined.named_parameters():
+                if name in encoder_weights.keys():
+                    param.requires_grad = False
+
+    def load_encoder_weights(self, checkpoint_1, checkpoint_2, unet):
+        model_sd = unet.state_dict()
+        shared_weights = OrderedDict()
+
+        for i, checkpoint in enumerate([checkpoint_1, checkpoint_2]):
+            for k in checkpoint.keys():
+                if k.startswith('head'):
+                    continue
+                v = checkpoint[k]
+                k_split = k.split('.')
+                if k.startswith('stem'):
+                    name = '.'.join([f"{k_split[0]}_{i+1}.0"] + k_split[1:])
+                else:
+                    name = '.'.join([f"{k_split[0]}_{i+1}"] + k_split[1:])
+                if checkpoint[k].size() == model_sd[name].size():
+                    shared_weights[name] = v
+                else:
+                    raise ValueError(f"weights of pretrained encoder layer {k} are not compatible with model layer {name}")
+        model_sd.update(shared_weights)
+
+        return model_sd, shared_weights
+
+    def forward(self, identity):
+        x = self.coreunet_combined.forward(identity)
+        # x = self.head(x)
+        return x
 
 
 
@@ -141,14 +193,15 @@ def get_core_encoder_kwargs(output_dim, input_dim, core_size, full_unet=True, **
 if __name__ == '__main__':
 
     input = torch.rand((8,10,128,128))
-    sd = torch.load('Mixer_last_10.pt')
-    mixer_kwargs = {'chw':(10,128,128), 'output_dim':641, 'embedding_dims':[128] * 4 * 2, 'patch_sizes':[16, 8, 4, 2] * 2, 'expansion':2.0}
-    mixer_kwargs = get_mixer_kwargs(chw=(10,128,128), output_dim=641, mixer_size='mixer_nano')
-    model = MixerGeoPretrained(output_dim=1,checkpoint=sd, mixer_kwargs=mixer_kwargs, freeze_body=True)
+    # sd = torch.load('Mixer_last_10.pt')
+    # mixer_kwargs = {'chw':(10,128,128), 'output_dim':641, 'embedding_dims':[128] * 4 * 2, 'patch_sizes':[16, 8, 4, 2] * 2, 'expansion':2.0}
+    # mixer_kwargs = get_mixer_kwargs(chw=(10,128,128), output_dim=641, mixer_size='mixer_nano')
+    # model = MixerGeoPretrained(output_dim=1,checkpoint=sd, mixer_kwargs=mixer_kwargs, freeze_body=True)
 
-    # sd = torch.load('CoreEncoder_last_8.pt')
-    # core_kwargs = get_core_encoder_kwargs(output_dim=1, input_dim=10, core_size='core_nano')
-    # model = CoreEncoderGeoPretrained(1, checkpoint=sd, core_encoder_kwargs=core_kwargs)
+    sd_1 = torch.load('/phileo_data/GeoAware_results/trained_models/12102023_CoreEncoder_LEO_geoMvMF_augm/CoreEncoder_last_8.pt')
+    sd_2 = torch.load('/home/lcamilleri/git_repos/Phileo-contrastive-geographical-expert/trained_models/contrastive/27102023_CoreEncoderMultiHead_geo_reduce_on_plateau/CoreEncoderMultiHead_best.pt')
+    core_kwargs = get_core_encoder_kwargs(output_dim=1, input_dim=10, core_size='core_nano')
+    model = CoreEncoderGeoPretrained_combined(1, checkpoint_1=sd_1, checkpoint_2=sd_2,core_encoder_kwargs=core_kwargs)
 
 
     #model.load_state_dict(sd)

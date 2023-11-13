@@ -17,7 +17,7 @@ else:
     args = parser.parse_args()
 
 
-for downstream_task in ['lc', 'building', 'roads']:
+for downstream_task in ['building', 'roads']:
 
     args['downstream_task'] = downstream_task
     if downstream_task == 'lc':
@@ -39,6 +39,8 @@ for downstream_task in ['lc', 'building', 'roads']:
                 args['pretrained_model_path'] = '/phileo_data/GeoAware_results/trained_models/12102023_CoreEncoder_LEO_geoMvMF_augm/CoreEncoder_last_19.pt'
             elif model_name == 'GeoAware_basic_core_nano':
                 args['pretrained_model_path'] = '/home/lcamilleri/git_repos/Phileo-contrastive-geographical-expert/trained_models/contrastive/01112023_CoreEncoderMultiHead_geo_pred_geo_reduce_on_plateau/CoreEncoderMultiHead_geo_pred_best.pt'
+            elif model_name == 'GeoAware_combined_core_nano':
+                args['pretrained_model_path'] = ['/home/lcamilleri/git_repos/Phileo-contrastive-geographical-expert/trained_models/contrastive/27102023_CoreEncoderMultiHead_geo_reduce_on_plateau/CoreEncoderMultiHead_best.pt', '/phileo_data/GeoAware_results/trained_models/12102023_CoreEncoder_LEO_geoMvMF_augm/CoreEncoder_last_19.pt']
             elif model_name == 'AutoEncoderVitPretrained':
                 args['pretrained_model_path'] = '/phileo_data/pretrained_models/31102023_MaskedAutoencoderViT/MaskedAutoencoderViT_ckpt.pt'
 

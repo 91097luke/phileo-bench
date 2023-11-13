@@ -223,14 +223,14 @@ class CoreUnet(nn.Module):
         self.bridge = nn.Sequential(
             CoreCNNBlock(self.dims[-1], self.dims[-1], norm=self.norm, activation=self.activation, padding=self.padding),
         )
-        
+
         self.head = nn.Sequential(
             CoreCNNBlock(self.dims[0], self.dims[0], norm=self.norm, activation=self.activation, padding=self.padding),
             nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
         )
     def forward_body(self, x):
         skip_connections = []
-        
+
         x = self.stem(x)
         for block in self.encoder_blocks:
             x, skip = block(x)
@@ -244,13 +244,128 @@ class CoreUnet(nn.Module):
         return x
 
     def forward(self, x):
-        
+
         x = self.forward_body(x)
         x = self.head(x)
 
         return x
 
 
+class CoreUnet_combined(nn.Module):
+    def __init__(self, *,
+                 input_dim=10,
+                 output_dim=1,
+                 depths=None,
+                 dims=None,
+                 activation="relu",
+                 norm="batch",
+                 padding="same",
+                 ):
+        super(CoreUnet_combined, self).__init__()
+
+        self.depths = [3, 3, 9, 3] if depths is None else depths
+        self.dims = [96, 192, 384, 768] if dims is None else dims
+        self.output_dim = output_dim
+        self.input_dim = input_dim
+        self.activation = activation
+        self.norm = norm
+        self.padding = padding
+
+        self.dims = [v // 2 for v in self.dims]
+
+        assert len(self.depths) == len(self.dims), "depths and dims must have the same length."
+
+        self.stem_1 = nn.Sequential(
+            CoreCNNBlock(self.input_dim, self.dims[0], norm=self.norm, activation=self.activation,
+                         padding=self.padding),
+        )
+
+        self.stem_2 = nn.Sequential(
+            CoreCNNBlock(self.input_dim, self.dims[0], norm=self.norm, activation=self.activation,
+                         padding=self.padding),
+        )
+
+        self.encoder_blocks_1 = []
+        self.encoder_blocks_2 = []
+        self.skip_downsample_blocks = []
+
+        for i in range(len(self.depths)):
+            encoder_block = CoreEncoderBlock(
+                self.depths[i],
+                self.dims[i - 1] if i > 0 else self.dims[0],
+                self.dims[i],
+                norm=self.norm,
+                activation=self.activation,
+                padding=self.padding,
+            )
+
+            skip_downsample_block = nn.Sequential(nn.Conv2d(self.dims[i]*2, self.dims[i], kernel_size=1, padding=0, bias=False),
+                                                  get_normalization(self.norm, self.dims[i]),
+                                                  get_activation(self.activation))
+
+            self.encoder_blocks_1.append(encoder_block)
+            self.encoder_blocks_2.append(encoder_block)
+            self.skip_downsample_blocks.append(skip_downsample_block)
+
+        self.encoder_blocks_1 = nn.ModuleList(self.encoder_blocks_1)
+        self.encoder_blocks_2 = nn.ModuleList(self.encoder_blocks_2)
+        self.skip_downsample_blocks = nn.ModuleList(self.skip_downsample_blocks)
+
+        self.decoder_blocks = []
+
+        for i in reversed(range(len(self.encoder_blocks_1))):
+            decoder_block = CoreDecoderBlock(
+                self.depths[i],
+                self.dims[i],
+                self.dims[i - 1] if i > 0 else self.dims[0],
+                norm=self.norm,
+                activation=self.activation,
+                padding=self.padding,
+            )
+            self.decoder_blocks.append(decoder_block)
+
+        self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
+
+        self.bridge = nn.Sequential(
+            CoreCNNBlock(self.dims[-1]*2, self.dims[-1], norm=self.norm, activation=self.activation,
+                         padding=self.padding),
+        )
+
+        self.head = nn.Sequential(
+            CoreCNNBlock(self.dims[0], self.dims[0], norm=self.norm, activation=self.activation, padding=self.padding),
+            nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
+        )
+
+    def forward_body(self, x):
+        skip_connections_1 = []
+        skip_connections_2 = []
+
+        x_1 = self.stem_1(x)
+        for block in self.encoder_blocks_1:
+            x_1, skip = block(x_1)
+            skip_connections_1.append(skip)
+
+        x_2 = self.stem_1(x)
+        for block in self.encoder_blocks_2:
+            x_2, skip = block(x_2)
+            skip_connections_2.append(skip)
+
+        x = torch.cat((x_1, x_2), dim=1)
+        skip_connections = [torch.cat((sc_1, sc_2), dim=1) for sc_1, sc_2 in zip(skip_connections_1, skip_connections_2)]
+        x = self.bridge(x)
+
+        for i, block in enumerate(self.decoder_blocks):
+            skip = skip_connections.pop()
+            skip = self.skip_downsample_blocks[-(i+1)](skip)
+            x = block(x, skip)
+        return x
+
+    def forward(self, x):
+
+        x = self.forward_body(x)
+        x = self.head(x)
+
+        return x
 
 class CoreEncoder(nn.Module):
     def __init__(self, *,
@@ -314,12 +429,12 @@ class CoreEncoder(nn.Module):
 if __name__ == "__main__":
     from torchinfo import summary
 
-    BATCH_SIZE = 32
+    BATCH_SIZE = 4
     CHANNELS = 10
     HEIGHT = 64
     WIDTH = 64
 
-    model = CoreUnet(
+    model = CoreUnet_combined(
         input_dim=10,
         output_dim=1,
     )

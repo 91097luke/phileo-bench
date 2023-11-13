@@ -15,7 +15,7 @@ from models.model_CoreCNN_versions import CoreUnet_nano, CoreUnet_tiny, CoreUnet
 from models.model_Mixer_versions import Mixer_nano, Mixer_tiny, Mixer_base, Mixer_large, Mixer_huge
 from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, LinearViT_huge
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
-from models.model_GeoAwarePretrained import MixerGeoPretrained, get_mixer_kwargs, get_core_encoder_kwargs, CoreEncoderGeoPretrained
+from models.model_GeoAwarePretrained import MixerGeoPretrained, get_mixer_kwargs, get_core_encoder_kwargs, CoreEncoderGeoPretrained, CoreEncoderGeoPretrained_combined
 from models.model_AutoEncoderViTPretrained import AutoEncoderViTPretrained
 
 from utils import data_protocol
@@ -28,7 +28,7 @@ MIXER_LIST = ['mixer_nano', 'mixer_tiny', 'mixer_base', 'mixer_large', 'mixer_hu
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge']
 CNN_PRETRAINED_LIST = ['GeoAware_core_nano', 'GeoAware_core_tiny', 'GeoAware_mixer_nano', 'GeoAware_mixer_tiny',
-                       'GeoAware_contrastive_core_nano', 'GeoAware_basic_core_nano']
+                       'GeoAware_contrastive_core_nano', 'GeoAware_basic_core_nano', 'GeoAware_combined_core_nano']
 
 VIT_PRETRAINED_LIST = ['AutoEncoderVitPretrained']
 
@@ -127,6 +127,16 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
         model(test_input)
         return model
 
+    if model_name == 'GeoAware_combined_core_nano':
+        sd_1 = torch.load(path_model_weights[0])
+        sd_2 = torch.load(path_model_weights[1])
+        core_kwargs = get_core_encoder_kwargs(output_dim=output_channels, input_dim=input_channels, core_size='core_nano')
+        model = CoreEncoderGeoPretrained_combined(output_channels, checkpoint_1=sd_1, checkpoint_2=sd_2,
+                                                  core_encoder_kwargs=core_kwargs)
+
+        model(test_input)
+        return model
+
     if model_name == 'AutoEncoderVitPretrained':
         sd = torch.load(path_model_weights, map_location=device)
         model = AutoEncoderViTPretrained(chw=(input_channels, input_size, input_size),
@@ -221,6 +231,8 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         model = get_models_pretrained(model_name, input_channels, output_channels, input_size, path_model_weights=pretrained_model_path, freeze=freeze_pretrained)
         if model_name == 'GeoAware_contrastive_core_nano':
             NAME = model.__class__.__name__ +'_contrastive_frozen' if freeze_pretrained else model.__class__.__name__ +'_contrastive_unfrozen'
+        elif model_name == 'GeoAware_basic_core_nano':
+            NAME = model.__class__.__name__ +'_basic_frozen' if freeze_pretrained else model.__class__.__name__ +'_basic_unfrozen'
         else:
             NAME = model.__class__.__name__ + '_frozen' if freeze_pretrained else model.__class__.__name__ + '_unfrozen'
 

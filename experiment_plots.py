@@ -28,7 +28,7 @@ def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=Fals
     task = f"_{downstream_task}"
     metric = metric #'mse' or 'acc'
 
-    n_shots = [50, 500, 5000, 50000, 100000, 200000]
+    n_shots = [ 500, 5000, 50000, 100000, 200000]
 
 
     for m in mode:
@@ -48,7 +48,7 @@ def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=Fals
                 # y.append(data['training_info']['best_epoch'])
                 y.append(data['test_metrics'][metric])
 
-        plt.scatter(x, y, label=m, alpha=0.8)
+        plt.plot(x, y, label=m, alpha=0.8, linestyle='--', marker='o')
 
 
     plt.legend()
@@ -68,11 +68,14 @@ if __name__ == '__main__':
     # parser = get_args()
     # args = parser.parse_args()
     # main(**vars(args))
+    task = 'roads'
 
-    main(folder=f'/phileo_data/experiments/n_shots/lc/', plot_title=f'nshot experiment on lc downstream task',
-                          filter_on=['CoreUnet', 'Pretrained_frozen', 'Pretrained_unfrozen',
+    main(folder=f'/phileo_data/experiments/n_shots/{task}/', plot_title=f'nshot experiment on {task} downstream task',
+                          filter_on=['CoreUnet', 'CoreEncoderGeoPretrained_frozen', 'CoreEncoderGeoPretrained_unfrozen',
                                      'Pretrained_contrastive_frozen', 'Pretrained_contrastive_unfrozen',
+                                     'Pretrained_basic_frozen', 'Pretrained_basic_unfrozen',
+                                     'Pretrained_combined_frozen', 'Pretrained_combined_unfrozen',
                                      'AutoEncoderViTPretrained_unfrozen', 'AutoEncoderViTPretrained_frozen'],
-                          downstream_task='lc', metric='acc', y_logscale=False, x_logscale=False)
+                          downstream_task=task, metric='mse', y_logscale=True, x_logscale=True)
 
 
