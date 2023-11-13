@@ -20,7 +20,7 @@ REGIONS_DOWNSTREAM_DATA = ['denmark-1', 'denmark-2', 'east-africa', 'egypt-1', '
                            'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
                            'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1']
 
-REGIONS_BUCKETS = {'europe':['europe','denmark-1','denmark-2'], 
+REGIONS_BUCKETS = {'europe': ['europe','denmark-1','denmark-2'],
                    'east-africa':['east-africa','tanzania-1','tanzania-2','tanzania-3','tanzania-4','tanzania-5','uganda-1'],
                    'northwest-africa':['eq-guinea','ghana-1','egypt-1','isreal-1','isreal-2','nigeria','senegal'],
                    'north-america':['north-america'],
@@ -297,7 +297,6 @@ def protocol_fewshot(folder: str,
         np.save(f'{dst}/{n}_shot_{y}/{n}shot_val_label_{y}.npy', val_y_temp)
     return train_X_temp, train_y_temp, val_X_temp, val_y_temp
 
-
 def protocol_fewshot_memmapped(folder: str,
                      dst: str,
                      n: int = 10,
@@ -330,7 +329,7 @@ def protocol_fewshot_memmapped(folder: str,
 
     samples_loaded = False
     if data_selection != 'random':
-        indices_path =  glob(f"indices_*_{y}_{n}.json")
+        indices_path = glob(f"indices/indices_*_{y}_{n}.json")
         
         if len(indices_path) == 0:
             if data_selection == 'create':
@@ -417,7 +416,7 @@ def protocol_fewshot_memmapped(folder: str,
                     if len(val_indices)==n_val_samples:
                         break
         
-                samples_dict[region] = {'train_indices':train_indices, 'val_indices':val_indices, 'length_multi_array_train':len(x_train), 'length_multi_array_val':len(x_val)}
+            samples_dict[region] = {'train_indices':train_indices, 'val_indices':val_indices, 'length_multi_array_train':len(x_train), 'length_multi_array_val':len(x_val)}
 
         x_train_samples += [x_train[i] for i in train_indices]
         y_train_samples += [y_train[i] for i in train_indices]
@@ -426,7 +425,7 @@ def protocol_fewshot_memmapped(folder: str,
         y_val_samples += [y_val[i] for i in val_indices]
 
     if not samples_loaded and data_selection=='create':
-        out_path = f'indices_{date.today().strftime("%d%m%Y")}_{y}_{n}.json'
+        out_path = f'indices/indices_{date.today().strftime("%d%m%Y")}_{y}_{n}.json'
         print(f'No predefined train/val sampling was used. Saving current sampling schema in {out_path}')
         with open(out_path, 'w') as f:
             json.dump(samples_dict, f)
