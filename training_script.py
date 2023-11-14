@@ -17,13 +17,14 @@ from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, Lin
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
 from models.model_GeoAwarePretrained import MixerGeoPretrained, get_mixer_kwargs, get_core_encoder_kwargs, CoreEncoderGeoPretrained, CoreEncoderGeoPretrained_combined
 from models.model_AutoEncoderViTPretrained import AutoEncoderViTPretrained
+from models.model_CoreVAE import CoreVAE_nano
 
 from utils import data_protocol
 from utils import load_data
 from utils import training_loops
 from utils.training_utils import read_yaml
 torch.manual_seed(123456)
-CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 'core_unet_large', 'core_unet_huge']
+CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 'core_unet_large', 'core_unet_huge', 'core_vae_nano']
 MIXER_LIST = ['mixer_nano', 'mixer_tiny', 'mixer_base', 'mixer_large', 'mixer_huge']
 VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
             'autoencoder_vit_base', 'autoencoder_vit_large', 'autoencoder_vit_huge']
@@ -64,6 +65,13 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                        train_loader=dl_train,
                                                        val_loader=dl_val, test_loader=dl_test, name=NAME,
                                                        out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+    if model_name == 'core_vae_nano':
+        trainer = training_loops.TrainVAE(epochs=epochs, lr=lr, model=model, device=device,
+                                          lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                          train_loader=dl_train,
+                                          val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                          out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
 
     return trainer
 
@@ -114,6 +122,8 @@ def get_models(model_name, input_channels, output_channels, input_size):
     elif model_name == 'autoencoder_vit_huge':
         return AutoencoderViT_huge(chw=(input_channels, input_size, input_size),
                                    output_dim=output_channels)
+    elif model_name == 'core_vae_nano':
+        return CoreVAE_nano(input_dim=input_channels, output_dim=10)
 
 
 def get_models_pretrained(model_name, input_channels, output_channels, input_size, path_model_weights=None, freeze=False, device='cuda'):
@@ -250,7 +260,15 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     if warmup:
         lr = lr / 100000  # for warmup start
 
-    if isinstance(n_shot, int):
+    if downstream_task == 'pretraining':
+        OUTPUT_FOLDER = f'{OUTPUT_FOLDER}'
+        x_train, y_train, x_val, y_val = data_protocol.protocol_minifoundation(
+            folder='/phileo_data/mini_foundation/mini_foundation_patches_np/patches_labeled/',
+            y='geo')
+
+        downstream_task = 'geo'
+
+    elif isinstance(n_shot, int):
         OUTPUT_FOLDER = f'{OUTPUT_FOLDER}_{n_shot}'
         x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot_memmapped(
             '/phileo_data/downstream/downstream_dataset_patches_np/',
@@ -275,7 +293,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
                                                     with_augmentations=augmentations,
                                                     num_workers=num_workers,
                                                     batch_size=batch_size,
-                                                    land_cover=lc,
+                                                    downstream_task=downstream_task,
                                                     device=device
                                                     )
 

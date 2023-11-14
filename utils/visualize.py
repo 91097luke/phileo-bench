@@ -149,3 +149,41 @@ def visualize_lc(x, y, y_pred=None, images=5, channel_first=False, vmin=0,save_p
     if save_path is not None:
         plt.savefig(save_path)
     plt.close()
+
+
+def visualize_reconstruct(x, y, images=5, channel_first=False,save_path=None ):
+    rows = images
+    columns = 2
+    i = 0
+    fig, axes = plt.subplots(nrows=rows, ncols=columns, figsize=(10 * columns, 10 * rows))
+
+    x = np.einsum('nchw->nhwc', x)
+    y = np.einsum('nchw->nhwc', y)
+
+    for idx in range(0, images):
+        arr_x = x[idx]
+        arr_y = y[idx]
+
+        rgb_x = render_s2_as_rgb(arr_x, False)
+        rgb_y = render_s2_as_rgb(arr_y, False)
+
+
+        i = i + 1
+        fig.add_subplot(rows, columns, i)
+        plt.imshow(rgb_x)
+
+        i = i + 1
+        fig.add_subplot(rows, columns, i)
+        plt.imshow(rgb_y)
+
+
+    fontsize = 96
+    axes[0][0].set_title('image', fontdict={'fontsize': fontsize})
+    axes[0][1].set_title('recon.', fontdict={'fontsize': fontsize})
+
+    fig.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path)
+    plt.clf()
+    plt.close()

@@ -40,6 +40,12 @@ def callback_postprocess_decoder(x, y):
     return torch.from_numpy(x), torch.from_numpy(y)
 
 
+def callback_postprocess_decoder_geo(x, y):
+    x = beo.channel_last_to_first(x)
+
+    return torch.from_numpy(x), torch.from_numpy(y)
+
+
 def callback_decoder(x, y):
     x, y = callback_preprocess(x, y)
     x, y = callback_postprocess_decoder(x, y)
@@ -52,35 +58,54 @@ def callback_decoder_landcover(x, y):
     x, y = callback_postprocess_decoder(x, y)
 
     return x, y
+def callback_decoder_geo(x, y):
+    x, y = callback_preprocess(x, y)
+    x, y = callback_postprocess_decoder_geo(x, y)
+
+    return x, y
 
 
 def load_data(x_train, y_train, x_val, y_val, x_test, y_test, device, with_augmentations=False, num_workers=0,
-              batch_size=16, land_cover=False):
+              batch_size=16, downstream_task=None):
 
     """
     Loads the data from the data folder.
     """
-    if land_cover:
+    if downstream_task=='lc':
         cb_decoder = callback_decoder_landcover
+    elif downstream_task == 'geo':
+        cb_decoder = callback_decoder_geo
     else:
         cb_decoder = callback_decoder
 
     if with_augmentations:
-        if land_cover:
+        aug = [
+                beo.AugmentationRotationXY(p=0.2, inplace=True),
+                beo.AugmentationMirrorXY(p=0.2, inplace=True),
+                # beo.AugmentationCutmix(p=0.2, inplace=True),
+                beo.AugmentationNoiseNormal(p=0.2, inplace=True),
+            ]
+        if downstream_task=='lc':
             cb_preprocess = callback_preprocess_landcover
         else:
             cb_preprocess = callback_preprocess
 
+        if downstream_task == 'geo':
+            cb_postprocess = callback_postprocess_decoder_geo
+            aug = [
+                beo.AugmentationRotation(p=0.2, inplace=True),
+                beo.AugmentationMirror(p=0.2, inplace=True),
+                # beo.AugmentationCutmix(p=0.2, inplace=True),
+                beo.AugmentationNoiseNormal(p=0.2, inplace=True),
+            ]
+        else:
+            cb_postprocess = callback_postprocess_decoder
+
         ds_train = beo.DatasetAugmentation(
             x_train, y_train,
             callback_pre_augmentation=cb_preprocess,
-            callback_post_augmentation=callback_postprocess_decoder,
-            augmentations=[
-                beo.AugmentationRotationXY(p=0.2, inplace=True),
-                beo.AugmentationMirrorXY(p=0.2, inplace=True),
-                beo.AugmentationCutmix(p=0.2, inplace=True),
-                beo.AugmentationNoiseNormal(p=0.2, inplace=True),
-            ]
+            callback_post_augmentation=cb_postprocess,
+            augmentations=aug
         )
     else:
         ds_train = beo.Dataset(x_train, y_train, callback=cb_decoder)

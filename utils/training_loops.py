@@ -9,6 +9,7 @@ import matplotlib
 # PyTorch
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 import numpy as np
@@ -72,8 +73,6 @@ class TrainBase():
         self.vl = []
         self.e = []
         self.lr = []
-
-
 
     def set_optimizer(self):
         optimizer = torch.optim.AdamW(self.model.parameters(),
@@ -153,8 +152,6 @@ class TrainBase():
 
             return np.array([test_mse,test_mae,test_mave,test_accuracy,tp,fp,fn,test_zero_model_mse])
 
-
-
     def t_loop(self, epoch, s):
         # Initialize the running loss
         train_loss = 0.0
@@ -217,6 +214,10 @@ class TrainBase():
 
             if self.visualise_validation:
                 outputs = self.model(images)
+
+                if type(outputs) is tuple:
+                    outputs = outputs[0]
+
                 self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(), outputs.detach().cpu().numpy(), name=f'/val_images/val_{epoch}')
 
             return j, val_loss
@@ -375,6 +376,25 @@ class TrainBase():
         with open(f"{self.out_folder}/artifacts.json", "w") as outfile:
             json.dump(artifacts, outfile)
 
+
+class TrainVAE(TrainBase):
+    def reconstruction_loss(self, reconstruction, original, mu, logvar, scale=1.0 ):
+        # Binary Cross-Entropy with Logits Loss
+        batch_size = original.size(0)
+
+        BCE = F.binary_cross_entropy_with_logits(reconstruction.reshape(batch_size, -1),
+                                                 original.reshape(batch_size, -1), reduction='mean')
+        KLDIV = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+
+        return (BCE + KLDIV) * scale
+
+    def get_loss(self, images, labels):
+        outputs, mu, logvar = self.model(images)
+        loss = self.reconstruction_loss(reconstruction=outputs, original=images, mu=mu, logvar=logvar)
+        return loss
+
+    def val_visualize(self, images, labels, outputs, name):
+        visualize.visualize_reconstruct(x=images, y=outputs, images=5, channel_first=True, save_path=f"{self.out_folder}/{name}.png")
 
 class TrainLandCover(TrainBase):
 
