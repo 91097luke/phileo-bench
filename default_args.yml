@@ -5,10 +5,10 @@ lr_scheduler: reduce_on_plateau
 batch_size: 16
 epochs: 500
 vis_val: True
-downstream_task: building
+downstream_task: lc
 input_channels: 10
 input_size: 128
-output_channels: 1
+output_channels: 11
 regions: null
 n_shot: 50
 split_ratio: null
