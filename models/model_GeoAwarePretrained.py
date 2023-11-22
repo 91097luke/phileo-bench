@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from models.model_Mixer import Mixer, CNNBlock
 from models.model_CoreCNN import CoreEncoder, CoreCNNBlock, CoreUnet, CoreUnet_combined
-from models.model_FeatureExtracter import GeoPretrainedFeatureExtractor
+#from models.model_FeatureExtracter import GeoPretrainedFeatureExtractor
 from models.model_Mixer_versions import Mixer_tiny
 from collections import OrderedDict
 
