@@ -468,7 +468,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
 
         
-        # # statistics used to normalize images before passing to the model 
+        # # statistics used to normalize images before passing to the model   
         # means = np.array(train_args["data_mean"]).reshape(-1, 1, 1)
         # stds = np.array(train_args["data_std"]).reshape(-1, 1, 1)
 
@@ -483,13 +483,13 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         # # In[8]:
 
 
-        # #normalized = preprocess_image(input_data)   
-        #normalized = dl_train
-        normalized = self.train_loader
+        # #normalized = preprocess_image(input_data)      
+        normalized = dl_train 
+        #normalized = self.train_loader
 
         
         
-        # with torch.no_grad(): 
+        # with torch.no_grad():  
         #         #mask_ratio = 0.5    
         #         mask_ratio = 0.
         #         _, pred, mask = model(normalized, mask_ratio=mask_ratio)
@@ -606,12 +606,12 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         # In[17]:
 
 
-        # if going with pytorch:  
+        # # if going with pytorch:   
         # - remember to normalize images beforehand (find the normalization statistics in the config file)  
         # - turn off masking by passing mask_ratio = 0
         #normalized = preprocess_image(input_data)
-        #normalized = dl_train
-        normalized = self.train_loader
+        normalized = dl_train
+        #normalized = self.train_loader
         # features, _, _ = model.forward_encoder(normalized, mask_ratio=0)
 
 
@@ -656,7 +656,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
             *[
             upscaling_block(embed_dims[i], embed_dims[i+1]) for i in range(4)
             ],
-            nn.Conv2d(kernel_size=1, in_channels=embed_dims[-1], out_channels=num_classes))a
+            nn.Conv2d(kernel_size=1, in_channels=embed_dims[-1], out_channels=num_classes))  
 
 
         # ### Running features through the segmentation head    
