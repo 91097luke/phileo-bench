@@ -10,6 +10,13 @@ import buteo as beo
 
 from utils.data_protocol import protocol_fewshot
 from utils import config_lc
+from utils import config_kg
+
+from utils import Prithvi_100M_config
+
+# statistics used to normalize images before passing to the model
+MEANS_PRITHVI = np.array(Prithvi_100M_config.data_mean).reshape(1, 1, -1)
+STDS_PRITHVI = np.array(Prithvi_100M_config.data_std).reshape(1, 1, -1)
 
 
 def render_s2_as_rgb(arr, channel_first=False):
@@ -19,6 +26,11 @@ def render_s2_as_rgb(arr, channel_first=False):
 
     if channel_first:
         arr = beo.channel_first_to_last(arr)
+
+    if arr.shape[-1] == 6:
+        arr = (arr * STDS_PRITHVI) + MEANS_PRITHVI
+        np.divide(arr, 10000.0, out=arr)
+
     # Select only Blue, green, and red. Then invert the order to have R-G-B
     rgb_slice = arr[:, :, 0:3][:, :, ::-1]
 
@@ -39,6 +51,38 @@ def render_s2_as_rgb(arr, channel_first=False):
     rgb_slice = np.rint(rgb_slice).astype(np.uint8)
 
     return rgb_slice
+
+def decode_date(encoded_date):
+    doy_sin, doy_cos = encoded_date
+
+    doy = np.arctan2((2 * doy_sin - 1), (2 * doy_cos - 1)) * 365 / (2 * np.pi)
+
+    if doy < 1:
+        doy += 365
+
+    return np.array([np.round(doy)])
+
+
+def decode_coordinates(encoded_coords):
+    lat_enc, long_sin, long_cos = encoded_coords
+
+    lat = -lat_enc * 180 + 90
+
+    long = np.arctan2((2 * long_sin - 1), (2 * long_cos - 1)) * 360 / (2 * np.pi)
+
+    return np.array([lat, long])
+
+
+def encode_coordinates(coords):
+    lat, long = coords
+
+    lat = (-lat + 90) / 180
+
+    long_sin = (np.sin(long * 2 * np.pi / 360) + 1) / 2
+
+    long_cos = (np.cos(long * 2 * np.pi / 360) + 1) / 2
+
+    return np.array([lat, long_sin, long_cos], dtype=np.float32)
 
 
 def visualize(x, y, y_pred=None, images=5, channel_first=False, vmin=0, vmax=1, save_path=None):
@@ -151,26 +195,59 @@ def visualize_lc(x, y, y_pred=None, images=5, channel_first=False, vmin=0,save_p
     plt.close()
 
 
-def visualize_reconstruct(x, y, images=5, channel_first=False,save_path=None ):
-    rows = images
+def visualize_vae(images, labels, outputs, num_images=5, channel_first=False,save_path=None ):
+    images = images.detach().cpu().numpy()
+    labels = labels.detach().cpu().numpy()
+
+    rows = num_images
     columns = 2
     i = 0
     fig, axes = plt.subplots(nrows=rows, ncols=columns, figsize=(10 * columns, 10 * rows))
+    reconstruction, meta_data, embeddings_ssl = outputs
 
-    x = np.einsum('nchw->nhwc', x)
-    y = np.einsum('nchw->nhwc', y)
+    images = np.einsum('nchw->nhwc', images)
+    reconstruction = np.einsum('nchw->nhwc', reconstruction.detach().cpu().numpy())
 
-    for idx in range(0, images):
-        arr_x = x[idx]
-        arr_y = y[idx]
+    for idx in range(0, num_images):
+        arr_x = images[idx]
+        arr_y = reconstruction[idx]
 
         rgb_x = render_s2_as_rgb(arr_x, False)
         rgb_y = render_s2_as_rgb(arr_y, False)
+
+        kg_label = labels[idx, :31]
+        co_ordinate_labels = labels[idx, 31:34]
+        time_labels = labels[idx, 34:36]
+
+        coord_out  = meta_data[0][idx]
+        time_out = meta_data[1][idx]
+        kg_out = meta_data[2][idx]
+
+        lat, long = decode_coordinates(co_ordinate_labels)
+        lat_pred, long_pred = decode_coordinates(coord_out.detach().cpu().numpy())
+
+        doy = decode_date(time_labels)
+        doy_pred = decode_date(time_out.detach().cpu().numpy())
+
+        climate = config_kg.kg_map[int(np.argmax([kg_label]))]['climate_class_str']
+        climate_pred = config_kg.kg_map[int(np.argmax([kg_out.detach().cpu().numpy()]))]['climate_class_str']
+
+        s1 = (f"Prediction: lat-long = {np.round(lat_pred, 2), np.round(long_pred, 2)} "
+              f"\n climate = {climate_pred} "
+              f"\n DoY = {doy_pred}")
+
+        s2 = (f"Label: lat-long = {np.format_float_positional(lat, 2), np.format_float_positional(long, 2)} "
+              f"\n climate = {climate} "
+              f"\n DoY = {doy}")
 
 
         i = i + 1
         fig.add_subplot(rows, columns, i)
         plt.imshow(rgb_x)
+
+        plt.text(25, 25, s1, fontsize=18, bbox=dict(fill=True))
+
+        plt.text(25, 65, s2, fontsize=18, bbox=dict(fill=True))
 
         i = i + 1
         fig.add_subplot(rows, columns, i)

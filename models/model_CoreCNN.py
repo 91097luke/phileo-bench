@@ -431,12 +431,14 @@ if __name__ == "__main__":
 
     BATCH_SIZE = 4
     CHANNELS = 10
-    HEIGHT = 64
-    WIDTH = 64
+    HEIGHT = 96
+    WIDTH = 96
 
-    model = CoreUnet_combined(
+    model = CoreUnet(
         input_dim=10,
         output_dim=1,
+        depths=[2, 2, 8, 2],
+        dims=[80, 160, 320, 640]
     )
     
     model(torch.randn((BATCH_SIZE, CHANNELS, HEIGHT, WIDTH)))

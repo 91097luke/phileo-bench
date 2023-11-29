@@ -8,6 +8,7 @@ import os
 import argparse
 
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Plot experiments test loss')
     parser.add_argument('--folder', type=str, required=True,
@@ -28,7 +29,7 @@ def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=Fals
     task = f"_{downstream_task}"
     metric = metric #'mse' or 'acc'
 
-    n_shots = [ 500, 5000, 50000, 100000, 200000]
+    n_shots = [5]
 
 
     for m in mode:
@@ -45,8 +46,14 @@ def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=Fals
                 f = open(file)
                 data = json.load(f)
                 x.append(data['training_parameters']['n_shot'])
-                # y.append(data['training_info']['best_epoch'])
-                y.append(data['test_metrics'][metric])
+
+                if metric == 'best_epoch':
+                    best_val_loss = min(data['plot_info']['val_losses'])
+                    _val_loss = best_val_loss + (best_val_loss*0.02)
+                    epoch, val_loss = min(enumerate(data['plot_info']['val_losses']), key=lambda x: abs(x[1] - _val_loss))
+                    y.append(epoch)
+                else:
+                    y.append(data['test_metrics'][metric])
 
         plt.plot(x, y, label=m, alpha=0.8, linestyle='--', marker='o')
 
@@ -58,8 +65,11 @@ def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=Fals
     if x_logscale:
         plt.xscale("log")
     plt.grid()
-    plt.ylabel(metric)
-    plt.xlabel('n training samples')
+    if metric == 'best_epoch':
+        plt.ylabel('best epoch')
+    else:
+        plt.ylabel(metric)
+    plt.xlabel('n training samples per region')
     plt.savefig(os.path.join(folder, f"test_{metric}{task}.png"))
 
     plt.close('all')
@@ -68,14 +78,10 @@ if __name__ == '__main__':
     # parser = get_args()
     # args = parser.parse_args()
     # main(**vars(args))
-    task = 'roads'
+    task = 'building'
 
-    main(folder=f'/phileo_data/experiments/n_shots/{task}/', plot_title=f'nshot experiment on {task} downstream task',
-                          filter_on=['CoreUnet', 'CoreEncoderGeoPretrained_frozen', 'CoreEncoderGeoPretrained_unfrozen',
-                                     'Pretrained_contrastive_frozen', 'Pretrained_contrastive_unfrozen',
-                                     'Pretrained_basic_frozen', 'Pretrained_basic_unfrozen',
-                                     'Pretrained_combined_frozen', 'Pretrained_combined_unfrozen',
-                                     'AutoEncoderViTPretrained_unfrozen', 'AutoEncoderViTPretrained_frozen'],
-                          downstream_task=task, metric='mse', y_logscale=True, x_logscale=True)
+    main(folder=f'/phileo_data/experiments/281123_n_shots/{task}/', plot_title=f'nshot experiment on {task} downstream task',
+                          filter_on=['CoreUnet', 'ViTCNN', 'Prithvi', 'SatMAE'],
+                          downstream_task=task, metric='mse', y_logscale=False, x_logscale=False)
 
 

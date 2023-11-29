@@ -1,53 +1,65 @@
 import torch
 import torch.nn as nn
 from utils.training_utils import get_activation, get_normalization, SE_Block
-from models.model_CoreCNN import CoreCNNBlock, CoreEncoderBlock, CoreAttentionBlock
+from models.model_CoreCNN import CoreCNNBlock, CoreEncoderBlock, CoreAttentionBlock, CoreDecoderBlock
+from torchvision import transforms
 
 
-class CoreDecoderBlock(nn.Module):
-    def __init__(self, depth, in_channels, out_channels, *, norm="batch", activation="relu", padding="same"):
-        super(CoreDecoderBlock, self).__init__()
+# class CoreDecoderBlock(nn.Module):
+#     def __init__(self, depth, in_channels, out_channels, *, norm="batch", activation="relu", padding="same"):
+#         super(CoreDecoderBlock, self).__init__()
+#
+#         self.depth = depth
+#         self.in_channels = in_channels
+#         self.out_channels = out_channels
+#         self.activation_blocks = activation
+#         self.activation = get_activation(activation)
+#         self.norm = norm
+#         self.padding = padding
+#
+#         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
+#         self.match_channels = CoreCNNBlock(self.in_channels, self.out_channels, norm=self.norm,
+#                                            activation=self.activation_blocks, padding=self.padding)
+#         # self.attention = CoreAttentionBlock(self.in_channels, self.in_channels, norm=self.norm,
+#         #                                     activation=self.activation_blocks, padding=self.padding)
+#
+#         self.blocks = []
+#         for _ in range(self.depth):
+#             block = CoreCNNBlock(self.out_channels, self.out_channels, norm=self.norm,
+#                                  activation=self.activation_blocks, padding=self.padding)
+#             self.blocks.append(block)
+#
+#         self.blocks = nn.Sequential(*self.blocks)
+#
+#     def forward(self, x):
+#         x = self.upsample(x)
+#         # attn_s, attn_c = self.attention(x, skip)
+#         # x = torch.cat([x, (skip * attn_s) + (skip + attn_c)], dim=1)
+#         x = self.match_channels(x)
+#
+#         for i in range(self.depth):
+#             x = self.blocks[i](x)
+#
+#         return x
 
-        self.depth = depth
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.activation_blocks = activation
-        self.activation = get_activation(activation)
-        self.norm = norm
-        self.padding = padding
+class ScaleSkip2D(nn.Module):
+    def __init__(self, c):
+        super(ScaleSkip2D, self).__init__()
+        self.c = c
 
-        self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
-        self.match_channels = CoreCNNBlock(self.in_channels, self.out_channels, norm=self.norm,
-                                           activation=self.activation_blocks, padding=self.padding)
-        # self.attention = CoreAttentionBlock(self.in_channels, self.in_channels, norm=self.norm,
-        #                                     activation=self.activation_blocks, padding=self.padding)
+        self.y_skipscale = nn.Parameter(torch.ones(1, self.c, 1, 1)) # use as loss-punishment
+        self.y_skipbias = nn.Parameter(torch.zeros(1, self.c, 1, 1))
 
-        self.blocks = []
-        for _ in range(self.depth):
-            block = CoreCNNBlock(self.out_channels, self.out_channels, norm=self.norm,
-                                 activation=self.activation_blocks, padding=self.padding)
-            self.blocks.append(block)
-
-        self.blocks = nn.Sequential(*self.blocks)
-
-    def forward(self, x):
-        x = self.upsample(x)
-        # attn_s, attn_c = self.attention(x, skip)
-        # x = torch.cat([x, (skip * attn_s) + (skip + attn_c)], dim=1)
-        x = self.match_channels(x)
-
-        for i in range(self.depth):
-            x = self.blocks[i](x)
-
-        return x
+    def forward(self, y): # y is the skip-connect
+        # clip negative values to zero
+        y = self.y_skipscale * y + self.y_skipbias
+        return y
 
 
 class CoreVAE(nn.Module):
     def __init__(self, *,
         input_dim=10,
-        output_dim=1,
-        img_size=128,
-        latent_dim=512,
+        output_dim=10,
         depths=None,
         dims=None,
         activation="relu",
@@ -56,8 +68,8 @@ class CoreVAE(nn.Module):
     ):
         super(CoreVAE, self).__init__()
 
-        self.depths = [3, 3, 9, 3] if depths is None else depths
-        self.dims = [96, 192, 384, 768] if dims is None else dims
+        self.depths = depths
+        self.dims = dims
         self.output_dim = output_dim
         self.input_dim = input_dim
         self.activation = activation
@@ -66,14 +78,11 @@ class CoreVAE(nn.Module):
 
         self.dims = [v // 2 for v in self.dims]
 
-        self.latent_dim = latent_dim
-        self.linear_dim = int(((img_size // (2 ** 4)) ** 2) * self.dims[-1]) # 2 ** 4 because of 4 downsamples
-        self.img_size = img_size
-
         assert len(self.depths) == len(self.dims), "depths and dims must have the same length."
 
         self.stem = nn.Sequential(
-            CoreCNNBlock(self.input_dim, self.dims[0], norm=self.norm, activation=self.activation, padding=self.padding),
+            CoreCNNBlock(self.input_dim, self.dims[0], norm=self.norm, activation=self.activation,
+                         padding=self.padding),
         )
 
         self.encoder_blocks = []
@@ -105,8 +114,17 @@ class CoreVAE(nn.Module):
 
         self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
 
+        self.scale_skips = []
+        self.scale_skip_weights = [(i+1)/len(self.dims) for i in range(len(self.dims))]
+        for i in reversed(range(len(self.encoder_blocks))):
+            scale_skip = ScaleSkip2D(c=self.dims[i])
+            self.scale_skips.append(scale_skip)
+
+        self.scale_skips = nn.ModuleList(self.scale_skips)
+
         self.bridge = nn.Sequential(
-            CoreCNNBlock(self.dims[-1], self.dims[-1], norm=self.norm, activation=self.activation, padding=self.padding),
+            CoreCNNBlock(self.dims[-1], self.dims[-1], norm=self.norm, activation=self.activation,
+                         padding=self.padding),
         )
 
         self.head = nn.Sequential(
@@ -114,35 +132,24 @@ class CoreVAE(nn.Module):
             nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
         )
 
-        self.linear_encode = nn.Sequential(
-            nn.Linear(self.linear_dim, self.latent_dim * 2),
+        self.head_climate = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(self.dims[-1], 31),
         )
 
-        self.linear_decode = nn.Sequential(
-            nn.Linear(self.latent_dim, self.linear_dim),
-            nn.LayerNorm(self.linear_dim),
-            nn.Mish(),
+        self.head_coord = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(self.dims[-1], 3),
         )
-    def sample(self, mu, logvar):
-        eps = torch.randn_like(mu)
-        std = logvar.exp()
-        z = eps * std + mu
-        return z
 
-    def gaussian_latent(self, x):
-        x = torch.flatten(x, start_dim=1)
-        x = self.linear_encode(x)
-        mu, logvar = x.chunk(2, dim=1)
-        x = self.sample(mu, logvar)
-        x = self.linear_decode(x)
-        x = x.reshape(-1, self.dims[-1], self.img_size // (2 ** 4), self.img_size // (2 ** 4)) # 2 ** 4 because of 4 downsamples
-        return x, mu, logvar
+        self.head_time = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(self.dims[-1], 2),
+        )
 
-    # x = self.linear_encode(x.reshape(-1, self.linear_dim))
-    # mu, logvar = x.chunk(2, dim=1)
-    # x = self.sample(mu, logvar)
-    # x = self.linear_decode(x)
-    # x = x.reshape(-1, self.dims[-1], self.img_size // (2 ** 4), self.img_size // (2 ** 4)) # 2 ** 4 because of 4 downsamples
     def forward_body(self, x):
         skip_connections = []
 
@@ -152,19 +159,27 @@ class CoreVAE(nn.Module):
             skip_connections.append(skip)
 
         x = self.bridge(x)
-        x, mu, logvar = self.gaussian_latent(x)
 
-        for block in self.decoder_blocks:
-            # skip = skip_connections.pop()
-            x = block(x)
-        return x, mu, logvar
+        out_coords = self.head_coord(x)
+        out_time = self.head_time(x)
+        out_kg = self.head_climate(x)
+
+        scale_skip_loss = []
+        for i, block in enumerate(self.decoder_blocks):
+            skip = skip_connections.pop()
+            skip = self.scale_skips[i](skip)
+            x = block(x, skip)
+
+            scale_skip_loss.append(self.scale_skips[i].y_skipscale.abs().mean() * self.scale_skip_weights[i])
+
+        return x, (out_coords, out_time, out_kg), sum(scale_skip_loss)/len(scale_skip_loss)
 
     def forward(self, x):
 
-        x, mu, logvar = self.forward_body(x)
-        x = self.head(x)
+        x, (out_coords, out_time, out_kg), latent = self.forward_body(x)
+        reconstruction = self.head(x)
 
-        return x, mu, logvar
+        return reconstruction, (out_coords, out_time, out_kg), latent
 
 
 def CoreVAE_nano(**kwargs):
@@ -179,8 +194,9 @@ def CoreVAE_nano(**kwargs):
     Params size (MB): 65.60
     Estimated Total Size (MB): 3459.42
     """
-    model = CoreVAE(depths=[2, 2, 8, 2], dims=[80, 160, 320, 640], **kwargs)
+    model = CoreVAE(depths=[2, 2, 8, 2], dims=[160, 320, 640, 1280], **kwargs)
     return model
+
 
 if __name__ == "__main__":
     from torchinfo import summary
@@ -190,7 +206,7 @@ if __name__ == "__main__":
     HEIGHT = 128
     WIDTH = 128
 
-    model = CoreVAE(
+    model = CoreVAE_nano(
         input_dim=10,
         output_dim=1,
     )
@@ -201,3 +217,6 @@ if __name__ == "__main__":
         model,
         input_size=(BATCH_SIZE, CHANNELS, HEIGHT, WIDTH),
     )
+
+    sd = model.state_dict()
+    torch.save(sd, 'test.pt')
