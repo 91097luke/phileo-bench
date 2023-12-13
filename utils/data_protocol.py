@@ -10,6 +10,7 @@ import random
 import json
 from datetime import date
 #
+
 from utils.training_utils import MultiArray_1D
 
 
@@ -18,7 +19,7 @@ np.random.seed(1234) # also affect pandas
 
 REGIONS_DOWNSTREAM_DATA = ['denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
                            'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
-                           'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1']
+                           'tanzanipa-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1']
 
 REGIONS_BUCKETS = {'europe': ['europe','denmark-1','denmark-2'],
                    'east-africa':['east-africa','tanzania-1','tanzania-2','tanzania-3','tanzania-4','tanzania-5','uganda-1'],
@@ -189,12 +190,14 @@ def protocol_split(folder: str,
 
 
 def check_region_validity(folder, regions, y):
+    # import pdb; pdb.set_trace()
     l = []
     for i, region in enumerate(regions):
         x_train_files = []
         for sub_regions in REGIONS_BUCKETS[region]: 
             x_train_files += sorted(glob(os.path.join(folder, f"{sub_regions}*train_s2.npy")))
 
+        
         # generate multi array for region
         # x_train_files = sorted(glob(os.path.join(folder, f"{region}*train_s2.npy")))
         y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
@@ -204,6 +207,7 @@ def check_region_validity(folder, regions, y):
         if x_train_files:
             l.append(region)
 
+    # import pdb; pdb.set_trace()
     return l
 
 
@@ -342,9 +346,12 @@ def protocol_fewshot_memmapped(folder: str,
     :return: train, val MultiArrays
     """
 
+    
     if regions is None:
         regions = list(REGIONS_BUCKETS.keys())
+        # import pdb ; pdb.set_trace()
     else:
+        # import pdb ; pdb.set_trace()
         for r in regions:
             assert r in list(REGIONS_BUCKETS.keys()), f"region {r} not found. Possible regions are {list(REGIONS_BUCKETS.keys())}"
     regions = check_region_validity(folder, regions, y)
@@ -375,6 +382,7 @@ def protocol_fewshot_memmapped(folder: str,
     y_train_samples = []
     x_val_samples = []
     y_val_samples = []
+    # import pdb ; pdb.set_trace()
     for i, region in enumerate(regions):
         print(i,region)
 
@@ -385,6 +393,8 @@ def protocol_fewshot_memmapped(folder: str,
         y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
         x_val_files = [f_name.replace('train', 'val') for f_name in x_train_files]
         y_val_files = [f_name.replace('train', 'val') for f_name in y_train_files]
+
+        # import pdb ; pdb.set_trace()
 
         # checks that s2 and label numpy files are consistent
         x_train_files, y_train_files = sanity_check_labels_exist(x_train_files, y_train_files)

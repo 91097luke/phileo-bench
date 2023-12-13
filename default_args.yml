@@ -1,21 +1,21 @@
-experiment_name: 281123_n_shots
-model_name: core_vae_nano
+experiment_name: tests
+model_name: core_unet_nano
 lr: 0.0001
 lr_scheduler: reduce_on_plateau
-batch_size: 32
+batch_size: 256
 epochs: 500
 vis_val: True
-downstream_task: pretraining
+downstream_task: lc
 input_channels: 10
 input_size: 128
-output_channels: 1
-regions: null
-n_shot: 50
-split_ratio: null
+output_channels: 11
+regions:
+n_shot: null
+split_ratio: 1.0
 augmentations: True
 early_stop: 15
 warmup: False
 device: cuda
-num_workers: 8
+num_workers: 24
 pretrained_model_path:
 freeze_pretrained: True

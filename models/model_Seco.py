@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from copy import deepcopy
-from seco_utils import moco2_module, segmentation
+from models.seco_utils import moco2_module, segmentation
 from models.model_SatMAE import CoreDecoderBlock, CoreCNNBlock, CoreEncoderBlock
 
 

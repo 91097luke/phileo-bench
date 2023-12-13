@@ -297,23 +297,23 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         model = get_models(model_name, input_channels, output_channels, input_size)
         NAME = model.__class__.__name__
 
-    OUTPUT_FOLDER = f'/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
+    OUTPUT_FOLDER = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
     if lr_scheduler is not None:
-        OUTPUT_FOLDER = f'/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
+        OUTPUT_FOLDER = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
 
     if warmup:
         lr = lr / 100000  # for warmup start
 
-    dataset_folder = '/phileo_data/downstream/downstream_dataset_patches_np/'
+    dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/'
     dataset_name = '128_10m'
     if model_name in MODELS_224:
-        dataset_folder = '/phileo_data/downstream/downstream_dataset_patches_np_HLS/'
+        dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/'
         dataset_name = '224_30m'
 
     if downstream_task == 'pretraining':
         OUTPUT_FOLDER = f'{OUTPUT_FOLDER}'
         x_train, y_train, x_val, y_val = data_protocol.protocol_minifoundation(
-            folder='/phileo_data/mini_foundation/mini_foundation_patches_np/patches_labeled/',
+            folder='/home/phimultigpu/phileo_NFS/phileo_data/mini_foundation/mini_foundation_patches_np/patches_labeled/',
             y='geo')
 
         downstream_task = 'geo'
@@ -323,7 +323,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
         x_train, y_train, x_val, y_val = data_protocol.protocol_fewshot_memmapped(
             folder=dataset_folder,
-            dst='/phileo_data/downstream/downstream_datasets_nshot/',
+            dst='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_datasets_nshot/',
             n=n_shot,
             regions=regions,
             y=downstream_task,
@@ -349,6 +349,15 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
                                                     model_name=model_name.split('_')[0],
                                                     device=device
                                                     )
+    
+
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        model = nn.DataParallel(model)
+
+    model.to(device)
+
     if model_name == 'SatMAE':
         model_summary = summary(model,
                                 input_size=(batch_size, input_channels, 96, 96), )
@@ -371,7 +380,6 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     trainer.test()
     trainer.save_info(model_summary=model_summary, n_shot=n_shot, p_split=split_ratio, warmup=warmup,
                       lr=init_lr)
-
 
 if __name__ == "__main__":
 

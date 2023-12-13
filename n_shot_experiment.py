@@ -55,12 +55,12 @@ for downstream_task in ['building', 'lc', 'roads']:
             elif model_name == 'GeoAware_combined_core_nano':
                 args['pretrained_model_path'] = ['/home/lcamilleri/git_repos/Phileo-contrastive-geographical-expert/trained_models/contrastive/27102023_CoreEncoderMultiHead_geo_reduce_on_plateau/CoreEncoderMultiHead_best.pt', '/phileo_data/GeoAware_results/trained_models/12102023_CoreEncoder_LEO_geoMvMF_augm/CoreEncoder_last_19.pt']
             elif model_name == 'GeoAware_core_autoencoder_nano':
-                args['pretrained_model_path'] = '/phileo_data/pretrained_models/23112023_CoreVAE_pretraining_reduce_on_plateau/CoreVAE_best.pt'
+                args['pretrained_model_path'] = '/phileo_NFS/phileo_data/pretrained_models/23112023_CoreVAE_pretraining_reduce_on_plateau/CoreVAE_best.pt'
             elif model_name == 'prithvi':
-                args['pretrained_model_path'] = '/phileo_data/pretrained_models/Prithvi_100M.pt'
+                args['pretrained_model_path'] = '/phileo_NFS/phileo_data/pretrained_models/Prithvi_100M.pt'
                 args['batch_size'] = 4
             elif model_name == 'SatMAE':
-                args['pretrained_model_path'] = '/phileo_data/pretrained_models/SatMAE_pretrain-vit-large-e199.pth'
+                args['pretrained_model_path'] = '/phileo_NFS/phileo_data//pretrained_models/SatMAE_pretrain-vit-large-e199.pth'
                 args['batch_size'] = 8
             elif model_name == 'vit_cnn':
                 args['pretrained_model_path'] = '/phileo_data/pretrained_models/31102023_MaskedAutoencoderViT/MaskedAutoencoderViT_ckpt.pt'
