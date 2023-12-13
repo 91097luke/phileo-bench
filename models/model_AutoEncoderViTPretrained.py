@@ -14,7 +14,10 @@ class ViTCNN(nn.Module):
 
     def __init__(self, chw:tuple=(10, 64, 64), patch_size:int=4, output_dim:int=10,
                  embed_dim=768, depth=12, num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, noisy_mask_token=True):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, noisy_mask_token=True,
+                 decoder_norm='batch', decoder_padding='same',
+                 decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280]
+                 ):
         super().__init__()
 
         # Attributes
@@ -42,32 +45,34 @@ class ViTCNN(nn.Module):
 
         # --------------------------------------------------------------------------
         # CNN Decoder Blocks:
-        self.depths = [2, 2, 8, 2]
-        self.dims = [40, 80, 160, embed_dim]
+        self.depths = decoder_depths
+        self.dims = decoder_dims
+        # self.dims[-1] = embed_dim
         self.decoder_blocks = []
         for i in reversed(range(len(self.depths))):
             decoder_block = CoreDecoderBlock(
                 self.depths[i],
                 self.dims[i],
                 self.dims[i - 1] if i > 0 else self.dims[0],
-                norm='batch',
-                activation='relu',
-                padding='same',
+                norm=decoder_norm,
+                activation=decoder_activation,
+                padding=decoder_padding,
             )
             self.decoder_blocks.append(decoder_block)
 
         self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
 
         self.decoder_bridge = nn.Sequential(
-            CoreCNNBlock(self.dims[-1], self.dims[-1], norm='batch', activation='relu', padding='same'),
+            CoreCNNBlock(self.dims[-1], self.dims[-1], norm=decoder_norm, activation=decoder_activation,
+                         padding=decoder_padding),
         )
 
         self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim,
-                                                                       out_channels=embed_dim, norm='batch',
-                                                                       activation='relu', padding='same'),
-                                                      CoreEncoderBlock(depth=1, in_channels=embed_dim,
-                                                                       out_channels=embed_dim, norm='batch',
-                                                                       activation='relu', padding='same')
+                                                                       out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
+                                                                       padding=decoder_padding),
+                                                      CoreEncoderBlock(depth=1, in_channels=self.dims[-1],
+                                                                       out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
+                         padding=decoder_padding)
                                                       )
 
         self.decoder_head = nn.Sequential(
@@ -163,7 +168,7 @@ class ViTCNN_gc(SatMAE):
                                                                        out_channels=embedding_dim, norm='batch',
                                                                        activation='relu', padding='same'),
                                                       CoreEncoderBlock(depth=1, in_channels=embedding_dim,
-                                                                       out_channels=embedding_dim, norm='batch',
+                                                                       out_channels=self.dims[-1], norm='batch',
                                                                        activation='relu', padding='same')
                                                       )
 
@@ -238,15 +243,39 @@ def vit_cnn(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, f
             print(f"Removing key {k} from pretrained checkpoint")
             del checkpoint[k]
 
+    # load pre-trained model
+    msg = model.load_state_dict(checkpoint, strict=False)
+    print(msg)
+
     if freeze_body:
         for name, param in model.named_parameters():
             if not name.startswith('decoder'):
                 param.requires_grad = False
 
-    # load pre-trained model
-    msg = model.load_state_dict(checkpoint, strict=False)
-    print(msg)
     return model
+
+
+def get_core_decoder_kwargs(output_dim, core_size, full_unet=True, **kwargs):
+    core_kwargs = {'output_dim': output_dim, 'decoder_norm': 'batch', 'decoder_padding': 'same',
+                   'decoder_activation': 'relu'}
+
+    if core_size == 'core_nano':
+        core_kwargs['decoder_depths'] = [2, 2, 8, 2]
+        core_kwargs['decoder_dims'] = [80, 160, 320, 640]
+
+    elif core_size == 'core_tiny':
+        core_kwargs['decoder_depths'] = [3, 3, 9, 3]
+        core_kwargs['decoder_dims'] = [96, 192, 384, 768]
+
+    elif core_size == 'core_base':
+        core_kwargs['decoder_depths'] = [3, 3, 27, 3]
+        core_kwargs['decoder_dims'] = [128, 256, 512, 1024]
+
+    else:
+        raise ValueError
+
+    core_kwargs.update(kwargs)
+    return core_kwargs
 
 
 if __name__ == '__main__':

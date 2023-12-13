@@ -88,7 +88,10 @@ class SatMAE(nn.Module):
                  # order S2 bands: 0-B02, 1-B03, 2-B04, 3-B08, 4-B05, 5-B06, 6-B07, 7-B8A, 8-B11, 9-B12
                  # groups: (i) RGB+NIR - B2, B3, B4, B8 (ii) Red Edge - B5, B6, B7, B8A (iii) SWIR - B11, B12,
                  channel_embed=256, embed_dim=1024, depth=24, num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
+                 decoder_norm='batch', decoder_padding='same',
+                 decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280]
+                 ):
         super().__init__()
 
         self.in_c = in_chans
@@ -104,7 +107,7 @@ class SatMAE(nn.Module):
         # self.patch_embed = PatchEmbed(img_size, patch_size, 1, embed_dim)
         self.num_patches = self.patch_embed[0].num_patches
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim), requires_grad=True)
         self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches + 1, embed_dim - channel_embed),
                                       requires_grad=False)  # fixed sin-cos embedding
         self.channel_embed = nn.Parameter(torch.zeros(1, num_groups, channel_embed), requires_grad=False)
@@ -117,32 +120,35 @@ class SatMAE(nn.Module):
         # --------------------------------------------------------------------------
 
         # CNN Decoder Blocks:
-        self.depths = [2, 2, 8, 2]
-        self.dims = [40, 80, 160, embed_dim*3]
+        self.depths = decoder_depths
+        self.dims = decoder_dims
+        # self.dims[-1] = int(embed_dim*3)
         self.decoder_blocks = []
         for i in reversed(range(len(self.depths))):
             decoder_block = CoreDecoderBlock(
                 self.depths[i],
                 self.dims[i],
                 self.dims[i - 1] if i > 0 else self.dims[0],
-                norm='batch',
-                activation='relu',
-                padding='same',
+                norm=decoder_norm,
+                activation=decoder_activation,
+                padding=decoder_padding,
             )
             self.decoder_blocks.append(decoder_block)
 
         self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
 
+        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=self.dims[-1],
+                                                                       out_channels=embed_dim*3, norm=decoder_norm, activation=decoder_activation,
+                                                                       padding=decoder_padding))
+
         self.decoder_bridge = nn.Sequential(
-            CoreCNNBlock(self.dims[-1], self.dims[-1],  norm='batch', activation='relu', padding='same'),
+            CoreCNNBlock(self.dims[-1], self.dims[-1],  norm=decoder_norm, activation=decoder_activation,
+                         padding=decoder_padding),
         )
 
-        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim*3,
-                                                                       out_channels=embed_dim*3, norm='batch',
-                                                                       activation='relu', padding='same'))
-
         self.decoder_head = nn.Sequential(
-            CoreCNNBlock(self.dims[0], self.dims[0], norm='batch', activation='relu', padding='same'),
+            CoreCNNBlock(self.dims[0], self.dims[0], norm=decoder_norm, activation=decoder_activation,
+                         padding=decoder_padding),
             nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
         )
         self.initialize_weights()
@@ -245,6 +251,129 @@ class SatMAE(nn.Module):
         return x
 
 
+class SatMAE_Classifier(nn.Module):
+    """ Masked Autoencoder with VisionTransformer backbone
+    """
+
+    def __init__(self, img_size=96, patch_size=8, in_chans=10, output_dim=1,
+                 channel_groups=((0, 1, 2, 3), (4, 5, 6, 7), (8, 9)),
+                 # order S2 bands: 0-B02, 1-B03, 2-B04, 3-B08, 4-B05, 5-B06, 6-B07, 7-B8A, 8-B11, 9-B12
+                 # groups: (i) RGB+NIR - B2, B3, B4, B8 (ii) Red Edge - B5, B6, B7, B8A (iii) SWIR - B11, B12,
+                 channel_embed=256, embed_dim=1024, depth=24, num_heads=16,
+                 mlp_ratio=4., norm_layer=nn.LayerNorm):
+        super().__init__()
+
+        self.in_c = in_chans
+        self.patch_size = patch_size
+        self.channel_groups = channel_groups
+        self.output_dim = output_dim
+        num_groups = len(channel_groups)
+
+        # --------------------------------------------------------------------------
+        # MAE encoder specifics
+        self.patch_embed = nn.ModuleList([PatchEmbed(img_size, patch_size, len(group), embed_dim)
+                                          for group in channel_groups])
+        # self.patch_embed = PatchEmbed(img_size, patch_size, 1, embed_dim)
+        self.num_patches = self.patch_embed[0].num_patches
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim), requires_grad=True)
+        self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches + 1, embed_dim - channel_embed),
+                                      requires_grad=False)  # fixed sin-cos embedding
+        self.channel_embed = nn.Parameter(torch.zeros(1, num_groups, channel_embed), requires_grad=False)
+        # self.enc_mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+
+        self.blocks = nn.ModuleList([
+            Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer)
+            for i in range(depth)])
+        self.norm = norm_layer(embed_dim)
+        # --------------------------------------------------------------------------
+
+        # CNN Decoder Blocks:
+        self.classification_head = nn.Sequential(nn.Linear(in_features=embed_dim, out_features=int(embed_dim/2)),
+                                                 nn.LayerNorm(int(embed_dim/2)),
+                                                 nn.ReLU(),
+                                                 nn.Linear(in_features=int(embed_dim/2), out_features=output_dim)
+                                                 )
+
+
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        # initialization
+        # initialize (and freeze) pos_embed by sin-cos embedding
+        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.num_patches ** .5),
+                                            cls_token=True)
+        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+
+
+        # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
+        w = self.patch_embed[0].proj.weight.data
+        torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
+
+        # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
+        torch.nn.init.normal_(self.cls_token, std=.02)
+
+        # initialize nn.Linear and nn.LayerNorm
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+    def forward_encoder(self, x):
+        # x is (N, C, H, W)
+        b, c, h, w = x.shape
+
+        x_c_embed = []
+        for i, group in enumerate(self.channel_groups):
+            x_c = x[:, group, :, :]
+            x_c_embed.append(self.patch_embed[i](x_c))  # (N, L, D)
+
+        x = torch.stack(x_c_embed, dim=1)  # (N, G, L, D)
+        _, G, L, D = x.shape
+
+        # add channel embed
+        channel_embed = self.channel_embed.unsqueeze(2)  # (1, G, 1, cD)
+        pos_embed = self.pos_embed[:, 1:, :].unsqueeze(1)  # (1, 1, L, pD)
+
+        # Channel embed same across (x,y) position, and pos embed same across channel (c)
+        channel_embed = channel_embed.expand(-1, -1, pos_embed.shape[2], -1)  # (1, G, L, cD)
+        pos_embed = pos_embed.expand(-1, channel_embed.shape[1], -1, -1)  # (1, G, L, pD)
+        pos_channel = torch.cat((pos_embed, channel_embed), dim=-1)  # (1, G, L, D)
+
+        # add pos embed w/o cls token
+        x = x + pos_channel  # (N, G, L, D)
+        x = x.view(b, -1, D) # (N, L, D)
+
+        # append cls token
+        cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)  # (N, G*L + 1, D)
+
+        # apply Transformer blocks
+        for blk in self.blocks:
+            x = blk(x)
+        x = self.norm(x)
+
+        # global pooling
+        # x = x.mean(dim=1)
+
+        # return cls token
+        x = x[:, 0, :]
+
+        return x
+
+    def forward(self, x):
+        x = self.forward_encoder(x)
+        x = self.classification_head(x)
+        return x
+
+
 def vit_base(**kwargs):
     model = SatMAE(
         channel_embed=256, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
@@ -259,6 +388,13 @@ def vit_large(**kwargs):
     return model
 
 
+def vit_large_classifier(**kwargs):
+    model = SatMAE_Classifier(
+        channel_embed=256, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
 def vit_huge(**kwargs):
     model = SatMAE(
         embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4,
@@ -266,11 +402,22 @@ def vit_huge(**kwargs):
     return model
 
 
-def satmae_vit_cnn(checkpoint, img_size=96, patch_size=8, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
+def satmae_vit_cnn(checkpoint, img_size=96, patch_size=8, in_chans=10, output_dim=1,
+                   decoder_norm='batch', decoder_padding='same', decoder_activation='relu', decoder_depths=[2, 2, 8, 2],
+                   decoder_dims=[160, 320, 640, 1280], freeze_body=True, classifier=False, **kwargs):
 
     checkpoint_model = checkpoint['model']
 
-    model = vit_large(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,  **kwargs)
+    if classifier:
+        model = vit_large_classifier(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,
+                                     **kwargs)
+    else:
+
+        model = vit_large(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,
+                          decoder_norm=decoder_norm, decoder_padding=decoder_padding, decoder_activation=decoder_activation,
+                          decoder_depths=decoder_depths, decoder_dims=decoder_dims,
+                          **kwargs)
+
     state_dict = model.state_dict()
 
     # model_sd, shared_weights = load_encoder_weights(checkpoint_model, state_dict)
@@ -280,14 +427,15 @@ def satmae_vit_cnn(checkpoint, img_size=96, patch_size=8, in_chans=10, output_di
             print(f"Removing key {k} from pretrained checkpoint")
             del checkpoint_model[k]
 
-    if freeze_body:
-        for name, param in model.named_parameters():
-            if not name.startswith('decoder'):
-                param.requires_grad = False
-
     # load pre-trained model
     msg = model.load_state_dict(checkpoint_model, strict=False)
     print(msg)
+
+    if freeze_body:
+        for name, param in model.named_parameters():
+            if not name.startswith('decoder') or not name.startswith('classification'):
+                param.requires_grad = False
+
     return model
 
 

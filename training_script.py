@@ -11,12 +11,14 @@ import argparse
 import sys; sys.path.append("../")
 
 from models.model_Baseline import BaselineNet
-from models.model_CoreCNN_versions import CoreUnet_nano, CoreUnet_tiny, CoreUnet_base, CoreUnet_large, CoreUnet_huge
+from models.model_CoreCNN_versions import CoreUnet_nano, CoreUnet_tiny, CoreUnet_base, CoreUnet_large, CoreUnet_huge, Core_nano
 from models.model_Mixer_versions import Mixer_nano, Mixer_tiny, Mixer_base, Mixer_large, Mixer_huge
 from models.model_LinearViT_versions import LinearViT_base, LinearViT_large, LinearViT_huge
 from models.model_AutoEncoderViT_versions import AutoencoderViT_base, AutoencoderViT_large, AutoencoderViT_huge
 from models.model_GeoAwarePretrained import MixerGeoPretrained, get_mixer_kwargs, get_core_encoder_kwargs, CoreEncoderGeoPretrained, CoreEncoderGeoPretrained_combined, CoreEncoderGeoAutoEncoder
-from models.model_AutoEncoderViTPretrained import vit_cnn, vit_cnn_gc, vit_large
+from models.model_GeoAwarePretrained_classifier import CoreEncoderGeoPretrained_Classifier
+from models.model_AutoEncoderViTPretrained import vit_cnn, vit_cnn_gc, vit_large, get_core_decoder_kwargs
+from models.model_AutoEncoderViTPretrained_classifier import vit_cnn_classifier, vit_cnn_gc_classifier
 from models.model_CoreVAE import CoreVAE_nano
 from models.model_SatMAE import satmae_vit_cnn
 from models.models_Prithvi import prithvi
@@ -29,7 +31,7 @@ from utils import training_loops
 from utils.training_utils import read_yaml
 torch.manual_seed(123456)
 CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 'core_unet_large', 'core_unet_huge',
-            'core_vae_nano', 'resnet_imagenet', 'resnet']
+            'core_vae_nano', 'resnet_imagenet', 'resnet', 'core_encoder_nano']
 
 VIT_CNN_LIST = ['vit_cnn_base']
 
@@ -40,11 +42,16 @@ VIT_LIST = ['linear_vit_base', 'linear_vit_larger', 'linear_vit_huge',
 
 CNN_PRETRAINED_LIST = ['GeoAware_core_nano', 'GeoAware_core_tiny', 'GeoAware_mixer_nano', 'GeoAware_mixer_tiny',
                        'GeoAware_contrastive_core_nano', 'GeoAware_mh_pred_core_nano', 'GeoAware_combined_core_nano',
-                       'GeoAware_core_autoencoder_nano', 'seasonal_contrast']
+                       'GeoAware_core_autoencoder_nano', 'seasonal_contrast',
+                       'GeoAware_core_nano_classifier', 'GeoAware_contrastive_core_nano_classifier',
+                       'GeoAware_mh_pred_core_nano_classifier', 'seasonal_contrast_classifier'
+                       ]
 
-VIT_CNN_PRETRAINED_LIST = ['prithvi', 'vit_cnn', 'vit_cnn_gc' 'SatMAE']
+VIT_CNN_PRETRAINED_LIST = ['prithvi', 'vit_cnn', 'vit_cnn_gc', 'SatMAE', 'SatMAE_classifier', 'vit_cnn_gc_classifier',
+                           'vit_cnn_classifier', 'prithvi_classifier']
 
-MODELS_224 = ['prithvi', 'seasonal_contrast', 'resnet_imagenet', 'resnet']
+MODELS_224 = ['seasonal_contrast', 'resnet_imagenet', 'resnet']
+MODELS_224_r30 = ['prithvi']
 
 MODEL_LIST = CNN_LIST + MIXER_LIST + VIT_LIST + CNN_PRETRAINED_LIST + VIT_CNN_LIST + VIT_CNN_PRETRAINED_LIST
 
@@ -65,6 +72,26 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                     train_loader=dl_train,
                                                     val_loader=dl_val, test_loader=dl_test, name=NAME,
                                                     out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+        elif downstream_task == 'building_classification':
+            trainer = training_loops.TrainClassificationBuildings(epochs=epochs, lr=lr, model=model, device=device,
+                                                                  lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                                                  train_loader=dl_train,
+                                                                  val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                                  out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+        elif downstream_task == 'lc_classification':
+            trainer = training_loops.TrainClassificationLC(epochs=epochs, lr=lr, model=model, device=device,
+                                                           lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                                           train_loader=dl_train,
+                                                           val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+
+        elif downstream_task == 'raods_classification':
+            trainer = training_loops.TrainClassificationRoads(epochs=epochs, lr=lr, model=model, device=device,
+                                                           lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
+                                                           train_loader=dl_train,
+                                                           val_loader=dl_val, test_loader=dl_test, name=NAME,
+                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
 
     elif model_name in (VIT_LIST):
         if downstream_task == 'roads' or downstream_task == 'building':
@@ -95,6 +122,8 @@ def get_models(model_name, input_channels, output_channels, input_size):
         return BaselineNet(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_unet_nano':
         return CoreUnet_nano(input_dim=input_channels, output_dim=output_channels)
+    elif model_name == 'core_encoder_nano':
+        return Core_nano(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_unet_tiny':
         return CoreUnet_tiny(input_dim=input_channels, output_dim=output_channels)
     elif model_name == 'core_unet_base':
@@ -143,9 +172,14 @@ def get_models(model_name, input_channels, output_channels, input_size):
         return vit_large(chw=(input_channels, input_size, input_size),
                          output_dim=output_channels)
     elif model_name == 'resnet_imagenet':
-        return resnet(imagenet_weights=True, output_dim=output_channels)
+        resnet_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return resnet(imagenet_weights=True, **resnet_kwargs)
+    elif model_name == 'resnet_imagenet_classifier':
+        resnet_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return resnet(imagenet_weights=True, classifier=True, **resnet_kwargs)
     elif model_name == 'resnet':
-        return resnet(imagenet_weights=True, output_dim=output_channels)
+        resnet_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return resnet(imagenet_weights=False, **resnet_kwargs)
 
 
 def get_models_pretrained(model_name, input_channels, output_channels, input_size, path_model_weights=None, freeze=False, device='cuda'):
@@ -158,6 +192,15 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
         sd = torch.load(path_model_weights)
         core_kwargs = get_core_encoder_kwargs(output_dim=output_channels, input_dim=input_channels, core_size='core_nano', full_unet=True)
         model = CoreEncoderGeoPretrained(output_channels, checkpoint=sd, core_encoder_kwargs=core_kwargs, freeze_body=freeze)
+        model(test_input)
+        return model
+
+    if (model_name == 'GeoAware_core_nano_classifier' or model_name == 'GeoAware_contrastive_core_nano_classifier' or
+            model_name == 'GeoAware_mh_pred_core_nano_classifier'):
+
+        sd = torch.load(path_model_weights)
+        core_kwargs = get_core_encoder_kwargs(output_dim=output_channels, input_dim=input_channels, core_size='core_nano', full_unet=False)
+        model = CoreEncoderGeoPretrained_Classifier(checkpoint=sd, core_encoder_kwargs=core_kwargs, freeze_body=freeze)
         model(test_input)
         return model
 
@@ -201,22 +244,54 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
 
     elif model_name == 'SatMAE':
         sd = torch.load(path_model_weights)
-        return satmae_vit_cnn(img_size=96, patch_size=8, in_chans=input_channels, output_dim=output_channels, checkpoint=sd, freeze_body=freeze)
+        satmae_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return satmae_vit_cnn(img_size=96, patch_size=8, in_chans=input_channels,
+                              checkpoint=sd, freeze_body=freeze, classifier=False, **satmae_kwargs)
+
+    elif model_name == 'SatMAE_classifier':
+        sd = torch.load(path_model_weights)
+        satmae_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return satmae_vit_cnn(img_size=96, patch_size=8, in_chans=input_channels,
+                              checkpoint=sd, freeze_body=freeze, classifier=True, **satmae_kwargs)
 
     elif model_name == 'prithvi':
         sd = torch.load(path_model_weights, map_location=device)
-        return prithvi(checkpoint=sd, output_dim=output_channels, freeze_body=freeze)
+        prithvi_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return prithvi(checkpoint=sd, freeze_body=freeze, **prithvi_kwargs)
+
+    elif model_name == 'prithvi_classifier':
+        sd = torch.load(path_model_weights, map_location=device)
+        prithvi_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return prithvi(checkpoint=sd, freeze_body=freeze, classifier=True, **prithvi_kwargs)
 
     elif model_name == 'vit_cnn':
         sd = torch.load(path_model_weights, map_location=device)
-        return vit_cnn(checkpoint=sd, output_dim=output_channels, freeze_body=freeze)
+        vit_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return vit_cnn(checkpoint=sd, freeze_body=freeze, **vit_kwargs)
+
+    elif model_name == 'vit_cnn_classifier':
+        sd = torch.load(path_model_weights, map_location=device)
+        return vit_cnn_classifier(checkpoint=sd, freeze_body=freeze, output_dim=output_channels)
 
     elif model_name == 'vit_cnn_gc':
         sd = torch.load(path_model_weights, map_location=device)
-        return vit_cnn_gc(checkpoint=sd, output_dim=output_channels, freeze_body=freeze)
+        vit_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return vit_cnn_gc(checkpoint=sd, freeze_body=freeze, **vit_kwargs)
+
+    elif model_name == 'vit_cnn_gc_classifier':
+        sd = torch.load(path_model_weights, map_location=device)
+        return vit_cnn_gc_classifier(checkpoint=sd, freeze_body=freeze, output_dim=output_channels)
+
 
     elif model_name == 'seasonal_contrast':
-        return seasonal_contrast(checkpoint=path_model_weights, output_dim=output_channels, freeze_body=freeze)
+        seco_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return seasonal_contrast(checkpoint=path_model_weights, output_dim=output_channels, freeze_body=freeze,
+                                 **seco_kwargs)
+
+    elif model_name == 'seasonal_contrast_classifier':
+        seco_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return seasonal_contrast(checkpoint=path_model_weights, output_dim=output_channels, freeze_body=freeze, classifier=True,
+                                 **seco_kwargs)
 
 
 def get_args():
@@ -272,21 +347,26 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
     assert not (n_shot == None) or not (split_ratio == None), 'Please define data partition protocol!'
     assert isinstance(n_shot, int) ^ isinstance(split_ratio, float), 'n_shot cannot be used with split_ratio!'
-    if (downstream_task == 'lc'):
-        assert not (output_channels == 1), 'land cover task should have more than 1 output channels'
-        lc = True
+    if (downstream_task == 'lc') or (downstream_task == 'lc_classification'):
+        assert not (output_channels == 1), 'land cover tasks should have 11 output channels'
 
     if (downstream_task == 'roads') or (downstream_task == 'building'):
-        assert output_channels == 1, 'regression type tasks should have a single output channel'
-        lc = False
+        assert output_channels == 1, 'road and building density estimation tasks should have a single output channel'
+
+    if downstream_task == 'building_classification':
+        assert output_channels == 5, 'building classification tasks should have a 5 output channels'
+
+    if downstream_task == 'roads_classification':
+        assert output_channels == 2, 'road classification tasks should have a 5 output channels'
 
     if pretrained_model_path is not None:
-        assert model_name in (CNN_PRETRAINED_LIST + VIT_CNN_PRETRAINED_LIST), f"Pretrained weights were given but model {model_name} not found in list of pretrained models: {(CNN_PRETRAINED_LIST + VIT_PRETRAINED_LIST)}"
+        print(model_name)
+        assert model_name in (CNN_PRETRAINED_LIST + VIT_CNN_PRETRAINED_LIST), f"Pretrained weights were given but model {model_name} not found in list of pretrained models: {(CNN_PRETRAINED_LIST + VIT_CNN_PRETRAINED_LIST)}"
         assert freeze_pretrained is not None, f"When supplying a pretrained model 'freeze_pretrained' must be either True or False"
         model = get_models_pretrained(model_name, input_channels, output_channels, input_size, path_model_weights=pretrained_model_path, freeze=freeze_pretrained)
-        if model_name == 'GeoAware_contrastive_core_nano':
+        if model_name == 'GeoAware_contrastive_core_nano' or model_name == 'GeoAware_contrastive_core_nano_classifier':
             NAME = model.__class__.__name__ +'_contrastive_frozen' if freeze_pretrained else model.__class__.__name__ +'_contrastive_unfrozen'
-        elif model_name == 'GeoAware_mh_pred_core_nano':
+        elif model_name == 'GeoAware_mh_pred_core_nano' or model_name == 'GeoAware_mh_pred_core_nano_classifier':
             NAME = model.__class__.__name__ +'_mh_pred_frozen' if freeze_pretrained else model.__class__.__name__ +'_mh_pred_unfrozen'
         else:
             NAME = model.__class__.__name__ + '_frozen' if freeze_pretrained else model.__class__.__name__ + '_unfrozen'
@@ -306,9 +386,12 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
     dataset_folder = '/phileo_data/downstream/downstream_dataset_patches_np/'
     dataset_name = '128_10m'
-    if model_name in MODELS_224:
+    if model_name in MODELS_224_r30:
         dataset_folder = '/phileo_data/downstream/downstream_dataset_patches_np_HLS/'
         dataset_name = '224_30m'
+    if model_name in MODELS_224:
+        dataset_folder = '/phileo_data/downstream/downstream_dataset_patches_np_224/'
+        dataset_name = '224_10m'
 
     if downstream_task == 'pretraining':
         OUTPUT_FOLDER = f'{OUTPUT_FOLDER}'
@@ -349,7 +432,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
                                                     model_name=model_name.split('_')[0],
                                                     device=device
                                                     )
-    if model_name == 'SatMAE':
+    if model_name == 'SatMAE' or model_name =='SatMAE_classifier':
         model_summary = summary(model,
                                 input_size=(batch_size, input_channels, 96, 96), )
 
