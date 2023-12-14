@@ -29,7 +29,7 @@ def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=Fals
     task = f"_{downstream_task}"
     metric = metric #'mse' or 'acc'
 
-    n_shots = [5]
+    n_shots = [50, 100, 500, 1000, 5000]
 
 
     for m in mode:
@@ -70,7 +70,9 @@ def main(folder, plot_title, metric, filter_on, downstream_task, y_logscale=Fals
     else:
         plt.ylabel(metric)
     plt.xlabel('n training samples per region')
+    plt.legend(loc='lower right', bbox_to_anchor=(1.2, 0))
     plt.savefig(os.path.join(folder, f"test_{metric}{task}.png"))
+
 
     plt.close('all')
 
@@ -78,10 +80,10 @@ if __name__ == '__main__':
     # parser = get_args()
     # args = parser.parse_args()
     # main(**vars(args))
-    task = 'building'
+    task = 'lc'
 
     main(folder=f'/phileo_data/experiments/281123_n_shots/{task}/', plot_title=f'nshot experiment on {task} downstream task',
-                          filter_on=['CoreUnet', 'ViTCNN', 'Prithvi', 'SatMAE'],
-                          downstream_task=task, metric='mse', y_logscale=False, x_logscale=False)
+                          filter_on=['CoreUnet', 'CoreEncoderGeoPretrained_mh_pred_unfrozen', 'CoreEncoderGeoPretrained_contrastive_unfrozen', 'CoreEncoderGeoPretrained_unfrozen', f'ViTCNN_{task}', 'Prithvi', 'SatMAE', 'ViTCNN_gc_unfrozen', 'ViTCNN_unfrozen', 'Seco', 'Resnet50'],
+                          downstream_task=task, metric='acc', y_logscale=False, x_logscale=False)
 
 

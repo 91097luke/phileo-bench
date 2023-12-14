@@ -58,7 +58,7 @@ def CoreUnet_nano(**kwargs):
     Params size (MB): 65.60
     Estimated Total Size (MB): 3459.42
     """
-    model = CoreUnet(depths=[2, 2, 8, 2], dims=[80, 160, 320, 640], **kwargs)
+    model = CoreUnet(depths=[2, 2, 8, 2], dims=[80*2, 160*2, 320*2, 640*2], **kwargs)
     return model
 
 def CoreUnet_tiny(**kwargs):

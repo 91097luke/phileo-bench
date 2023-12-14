@@ -18,4 +18,4 @@ warmup: False
 device: cuda
 num_workers: 24
 pretrained_model_path:
-freeze_pretrained: True
+freeze_pretrained:

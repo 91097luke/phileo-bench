@@ -164,6 +164,7 @@ class TrainBase():
         for i, (images, labels) in enumerate(train_pbar):
             # Move inputs and targets to the device (GPU)
             images, labels = images.to(self.device), labels.to(self.device)
+            # images.requires_grad = True; labels.requires_grad = True
 
             # Zero the gradients
             self.optimizer.zero_grad()
@@ -651,6 +652,86 @@ class TrainLandCover(TrainBase):
             cfm = bins.reshape(num_classes, num_classes)
 
             return cfm.cpu().numpy()
+
+class TrainClassificationBuildings(TrainBase):
+
+    def set_criterion(self):
+        return nn.CrossEntropyLoss(weight=torch.tensor([2.65209613e-01, 6.95524031e-01,
+                                                        3.12650858e-02, 7.95257252e-03, 4.86978615e-05]))
+
+    def get_loss(self, images, labels):
+        outputs = self.model(images)
+        loss = self.criterion(outputs, labels)
+        return loss
+
+    def val_visualize(self, images, labels, outputs, name):
+        visualize.visualize_lc_classification(x=images, y=labels, y_pred=outputs, images=5,
+                                              channel_first=True, num_classes=5,
+                                              labels=['no urbanization', 'sparse urbanization',
+                                                      'moderate urbanization', 'significant urbanization',
+                                                      'extreme urbanization'],
+                                              save_path=f"{self.out_folder}/{name}.png")
+
+    def get_metrics(self, images=None, labels=None, running_metric=None, k=None):
+
+        if (running_metric is not None) and (k is not None):
+            metric_names = ['mse','mae','mave','acc','precision','recall','baseline_mse']
+            # intermediary_values = ['mse','mae','mave','acc','tp','fp','fn','baseline_mse']
+
+            final_metrics = {'mse':running_metric[0] / (k + 1), 'mae':running_metric[1] / (k + 1), 'acc':running_metric[3]/ (k + 1)}
+
+            return final_metrics
+
+        elif (images == None) and (labels == None):
+            intermediary_values = ['mse','mae','acc']
+            metric_init = np.zeros(len(intermediary_values)) #
+            return  metric_init
+
+        else:
+            outputs = self.model(images)
+
+            # regression metrics
+            error = outputs - labels
+            squared_error = error ** 2
+            test_mse = squared_error.mean().item()
+            test_mae = error.abs().mean().item()
+            # test_mave = torch.mean(torch.abs(outputs.mean(dim=(1, 2)) - labels.mean(dim=(1, 2)))).item()
+
+            # regression metrics disguised as classification
+            output_classification = outputs.argmax(axis=1).flatten()
+            label_classification = labels.argmax(axis=1).flatten()
+
+            test_accuracy = (label_classification == output_classification).type(torch.float).mean().item()
+
+            return np.array([test_mse, test_mae, test_accuracy])
+
+
+
+
+class TrainClassificationLC(TrainClassificationBuildings):
+
+    def set_criterion(self):
+        return nn.CrossEntropyLoss()
+    def val_visualize(self, images, labels, outputs, name):
+        visualize.visualize_lc_classification(x=images, y=labels, y_pred=outputs, images=5,
+                                              channel_first=True, num_classes=11,
+                                              labels=['Tree cover', 'Shrubland', 'Grassland', 'Cropland', 'Built-up',
+                                                      'Bare/sparse', 'snow/ice','Perm water', 'Wetland', 'Mangroves',
+                                                      'Moss'],
+                                              save_path=f"{self.out_folder}/{name}.png")
+
+
+class TrainClassificationRoads(TrainClassificationBuildings):
+
+    def set_criterion(self):
+        return nn.CrossEntropyLoss(weight=torch.tensor([0.37228453, 0.62771547]))
+
+    def val_visualize(self, images, labels, outputs, name):
+        visualize.visualize_lc_classification(x=images, y=labels, y_pred=outputs, images=5,
+                                              channel_first=True, num_classes=2,
+                                              labels=['No Roads', 'Roads'],
+                                              save_path=f"{self.out_folder}/{name}.png")
+
 
 class TrainViT(TrainBase):
     def get_loss(self, images, labels):

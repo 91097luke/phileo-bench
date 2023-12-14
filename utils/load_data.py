@@ -55,7 +55,8 @@ def callback_preprocess_satmae(x, y):
     y = y.astype(np.float32, copy=False)
 
     x_norm = x_norm[16:-16, 16:-16, :]
-    y = y[16:-16, 16:-16, :]
+    if len(y.shape) > 2:
+        y = y[16:-16, 16:-16, :]
     return x_norm, y
 
 
@@ -103,7 +104,8 @@ def callback_preprocess_landcover_prithvi(x, y):
 
 def callback_postprocess_decoder(x, y):
     x = beo.channel_last_to_first(x)
-    y = beo.channel_last_to_first(y)
+    if len(y.shape) > 2:
+        y = beo.channel_last_to_first(y)
 
     return torch.from_numpy(x), torch.from_numpy(y)
 
@@ -208,7 +210,7 @@ def load_data(x_train, y_train, x_val, y_val, x_test, y_test, device, with_augme
             else:
                 cb_preprocess = callback_preprocess
 
-        if downstream_task == 'geo':
+        if downstream_task in ['geo', 'lc_classification', 'building_classification', 'roads_regression']:
             cb_postprocess = callback_postprocess_decoder_geo
             aug = [
                 beo.AugmentationRotation(p=0.2, inplace=True),
