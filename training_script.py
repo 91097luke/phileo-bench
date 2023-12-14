@@ -18,6 +18,7 @@ from models.model_AutoEncoderViT_versions import AutoencoderViT_base, Autoencode
 from models.model_GeoAwarePretrained import MixerGeoPretrained, get_mixer_kwargs, get_core_encoder_kwargs, CoreEncoderGeoPretrained, CoreEncoderGeoPretrained_combined, CoreEncoderGeoAutoEncoder
 from models.model_GeoAwarePretrained_classifier import CoreEncoderGeoPretrained_Classifier
 from models.model_AutoEncoderViTPretrained import vit_cnn, vit_cnn_gc, vit_large, get_core_decoder_kwargs
+from models.model_AutoEncoderViTPretrained_wSkip import vit_cnn_wSkip, vit_cnn_gc_wSkip, vit_large_wSkip
 from models.model_AutoEncoderViTPretrained_classifier import vit_cnn_classifier, vit_cnn_gc_classifier
 from models.model_CoreVAE import CoreVAE_nano
 from models.model_SatMAE import satmae_vit_cnn
@@ -33,7 +34,7 @@ torch.manual_seed(123456)
 CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 'core_unet_large', 'core_unet_huge',
             'core_vae_nano', 'resnet_imagenet', 'resnet', 'core_encoder_nano']
 
-VIT_CNN_LIST = ['vit_cnn_base']
+VIT_CNN_LIST = ['vit_cnn_base', 'vit_cnn_base_wSkip']
 
 MIXER_LIST = ['mixer_nano', 'mixer_tiny', 'mixer_base', 'mixer_large', 'mixer_huge']
 
@@ -48,7 +49,7 @@ CNN_PRETRAINED_LIST = ['GeoAware_core_nano', 'GeoAware_core_tiny', 'GeoAware_mix
                        ]
 
 VIT_CNN_PRETRAINED_LIST = ['prithvi', 'vit_cnn', 'vit_cnn_gc', 'SatMAE', 'SatMAE_classifier', 'vit_cnn_gc_classifier',
-                           'vit_cnn_classifier', 'prithvi_classifier']
+                           'vit_cnn_classifier', 'prithvi_classifier', 'vit_cnn_wSkip', 'vit_cnn_gc_wSkip']
 
 MODELS_224 = ['seasonal_contrast', 'resnet_imagenet', 'resnet']
 MODELS_224_r30 = ['prithvi']
@@ -171,6 +172,9 @@ def get_models(model_name, input_channels, output_channels, input_size):
     elif model_name == 'vit_cnn_base':
         return vit_large(chw=(input_channels, input_size, input_size),
                          output_dim=output_channels)
+    elif model_name == 'vit_cnn_base_wSkip':
+        return vit_large_wSkip(chw=(input_channels, input_size, input_size),
+                         output_dim=output_channels)
     elif model_name == 'resnet_imagenet':
         resnet_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
         return resnet(imagenet_weights=True, **resnet_kwargs)
@@ -269,6 +273,11 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
         vit_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
         return vit_cnn(checkpoint=sd, freeze_body=freeze, **vit_kwargs)
 
+    elif model_name == 'vit_cnn_wSkip':
+        sd = torch.load(path_model_weights, map_location=device)
+        vit_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return vit_cnn_wSkip(checkpoint=sd, freeze_body=freeze, **vit_kwargs)
+
     elif model_name == 'vit_cnn_classifier':
         sd = torch.load(path_model_weights, map_location=device)
         return vit_cnn_classifier(checkpoint=sd, freeze_body=freeze, output_dim=output_channels)
@@ -278,10 +287,14 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
         vit_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
         return vit_cnn_gc(checkpoint=sd, freeze_body=freeze, **vit_kwargs)
 
+    elif model_name == 'vit_cnn_gc_wSkip':
+        sd = torch.load(path_model_weights, map_location=device)
+        vit_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
+        return vit_cnn_gc_wSkip(checkpoint=sd, freeze_body=freeze, **vit_kwargs)
+
     elif model_name == 'vit_cnn_gc_classifier':
         sd = torch.load(path_model_weights, map_location=device)
         return vit_cnn_gc_classifier(checkpoint=sd, freeze_body=freeze, output_dim=output_channels)
-
 
     elif model_name == 'seasonal_contrast':
         seco_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
