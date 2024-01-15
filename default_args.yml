@@ -19,3 +19,6 @@ device: cuda
 num_workers: 24
 pretrained_model_path:
 freeze_pretrained:
+data_path_128_10m: /home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/
+data_path_224_10m: /home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/
+data_path_224_30m: /home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/

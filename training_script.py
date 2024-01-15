@@ -345,13 +345,18 @@ def get_args():
     parser.add_argument('--augmentations', action="store_true", help='enables augmentations')
     parser.add_argument('--pretrained_model_path', type=str, default=None, help='path to pretrained weights')
     parser.add_argument('--freeze_pretrained', action="store_true", help='freeze pretrained model weights')
+    parser.add_argument('--data_path_128_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/')
+    parser.add_argument('--data_path_224_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/')
+    parser.add_argument('--data_path_224_30m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/')
+
 
     return parser,parser_yaml
 
 
 def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
          early_stop:int=25, epochs:int=250, input_channels:int=10, input_size:int=128, lr:float=0.001, lr_scheduler:str=None,
-         n_shot:int=None, num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val=True, warmup=False, pretrained_model_path=None, freeze_pretrained=None):
+         n_shot:int=None, num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val=True, warmup=False, pretrained_model_path=None, freeze_pretrained=None,
+         data_path_128_10m=None, data_path_224_10m=None, data_path_224_30m=None):
 
     init_lr = lr
     # device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -397,13 +402,13 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     if warmup:
         lr = lr / 100000  # for warmup start
 
-    dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/'
+    dataset_folder = data_path_128_10m
     dataset_name = '128_10m'
     if model_name in MODELS_224_r30:
-        dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/'
+        dataset_folder = data_path_224_30m
         dataset_name = '224_30m'
     if model_name in MODELS_224:
-        dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/'
+        dataset_folder = data_path_224_10m
         dataset_name = '224_10m'
 
     if downstream_task == 'pretraining':
