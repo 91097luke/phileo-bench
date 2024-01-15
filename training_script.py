@@ -32,7 +32,7 @@ from utils import training_loops
 from utils.training_utils import read_yaml
 torch.manual_seed(123456)
 CNN_LIST = ['baseline_cnn', 'core_unet_nano','core_unet_tiny','core_unet_base', 'core_unet_large', 'core_unet_huge',
-            'core_vae_nano', 'resnet_imagenet', 'resnet', 'core_encoder_nano']
+            'core_vae_nano', 'resnet_imagenet', 'resnet', 'core_encoder_nano', 'resnet_imagenet_classifier']
 
 VIT_CNN_LIST = ['vit_cnn_base', 'vit_cnn_base_wSkip']
 
@@ -51,8 +51,8 @@ CNN_PRETRAINED_LIST = ['GeoAware_core_nano', 'GeoAware_core_tiny', 'GeoAware_mix
 VIT_CNN_PRETRAINED_LIST = ['prithvi', 'vit_cnn', 'vit_cnn_gc', 'SatMAE', 'SatMAE_classifier', 'vit_cnn_gc_classifier',
                            'vit_cnn_classifier', 'prithvi_classifier', 'vit_cnn_wSkip', 'vit_cnn_gc_wSkip']
 
-MODELS_224 = ['seasonal_contrast', 'resnet_imagenet', 'resnet']
-MODELS_224_r30 = ['prithvi']
+MODELS_224 = ['seasonal_contrast', 'resnet_imagenet', 'resnet', 'seasonal_contrast_classifier', 'resnet_imagenet_classifier']
+MODELS_224_r30 = ['prithvi', 'prithvi_classifier']
 
 MODEL_LIST = CNN_LIST + MIXER_LIST + VIT_LIST + CNN_PRETRAINED_LIST + VIT_CNN_LIST + VIT_CNN_PRETRAINED_LIST
 
@@ -87,7 +87,7 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                            val_loader=dl_val, test_loader=dl_test, name=NAME,
                                                            out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
 
-        elif downstream_task == 'raods_classification':
+        elif downstream_task == 'roads_classification':
             trainer = training_loops.TrainClassificationRoads(epochs=epochs, lr=lr, model=model, device=device,
                                                            lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                            train_loader=dl_train,
@@ -298,12 +298,12 @@ def get_models_pretrained(model_name, input_channels, output_channels, input_siz
 
     elif model_name == 'seasonal_contrast':
         seco_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
-        return seasonal_contrast(checkpoint=path_model_weights, output_dim=output_channels, freeze_body=freeze,
+        return seasonal_contrast(checkpoint=path_model_weights, freeze_body=freeze,
                                  **seco_kwargs)
 
     elif model_name == 'seasonal_contrast_classifier':
         seco_kwargs = get_core_decoder_kwargs(output_dim=output_channels, core_size='core_nano')
-        return seasonal_contrast(checkpoint=path_model_weights, output_dim=output_channels, freeze_body=freeze, classifier=True,
+        return seasonal_contrast(checkpoint=path_model_weights, freeze_body=freeze, classifier=True,
                                  **seco_kwargs)
 
 
@@ -400,12 +400,10 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/'
     dataset_name = '128_10m'
     if model_name in MODELS_224_r30:
-        dataset_folder = '/phileo_data/downstream/downstream_dataset_patches_np_HLS/'
-    if model_name in MODELS_224:
         dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/'
         dataset_name = '224_30m'
     if model_name in MODELS_224:
-        dataset_folder = '/phileo_data/downstream/downstream_dataset_patches_np_224/'
+        dataset_folder = '/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/'
         dataset_name = '224_10m'
 
     if downstream_task == 'pretraining':
@@ -449,27 +447,31 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
                                                     )
     
 
-    if torch.cuda.device_count() > 1:
+    if torch.cuda.device_count() > 1 and model_name.split('_')[-1] != 'wSkip' :
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
         model = nn.DataParallel(model)
-
+ 
     model.to(device)
 
     if model_name == 'SatMAE' or model_name =='SatMAE_classifier':
+        print()
+        # import pdb; pdb.set_trace()
         model_summary = summary(model,
                                 input_size=(batch_size, input_channels, 96, 96), )
 
-    elif model_name == 'prithvi':
+    elif model_name == 'prithvi' or model_name =='prithvi_classifier':
         model_summary = summary(model,
                                 input_size=(batch_size, 6, 224, 224), dtypes=[torch.float32])
 
-    elif model_name in ['seasonal_contrast', 'resnet_imagenet', 'resnet']:
+    elif model_name in ['seasonal_contrast', 'resnet_imagenet', 'resnet', 'seasonal_contrast_classifier']:
         model_summary = summary(model,
                                 input_size=(batch_size, input_channels, 224, 224), )
 
     else:
         model_summary = summary(model, input_size=(batch_size, input_channels, input_size, input_size))
+
+
 
     trainer = get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
                 dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val)
@@ -491,25 +493,6 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
     main(**vars(args))
-
-    # for downstream_task in ['lc', 'roads', 'building']:
-    #     args['downstream_task'] = downstream_task
-    #     for n_shot in [5, 10, 50, 500, 5000, 50000, 100000, 200000]:
-    #         for model_name in ['core_unet_nano', 'GeoAware_contrasive_core_nano', 'GeoAware_core_nano']: #,'mixer_nano','baseline_cnn','linear_vit_base']:
-    #             args['n_shot'] = n_shot
-    #             args['model_name'] = model_name
-    #
-    #             if model_name == 'GeoAware_contrasive_core_nano':
-    #                 args['pretrained_model_path'] = '/home/lcamilleri/git_repos/Phileo-contrastive-geographical-expert/trained_models/contrastive/27102023_CoreEncoderMultiHead_geo_reduce_on_plateau/CoreEncoderMultiHead_best.pt'
-    #             elif model_name == 'GeoAware_contrasive_core_nano':
-    #                 args['pretrained_model_path'] = '/phileo_data/GeoAware_results/trained_models/12102023_CoreEncoder_LEO_geoMvMF_augm/CoreEncoder_last_19.pt'
-    #             if model_name != 'core_unet_nano':
-    #                for freeze in [True, False]:
-    #                     args['freeze_pretrained'] = freeze
-    #                     main(**vars(args))
-    #             else:
-    #                 args['pretrained_model_path'] = None
-    #                 main(**vars(args))
 
 
 

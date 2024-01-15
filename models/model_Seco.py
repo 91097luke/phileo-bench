@@ -93,9 +93,15 @@ def seasonal_contrast(checkpoint, output_dim=1, freeze_body=True, classifier=Fal
         model = Seco(ckpt_path=checkpoint, output_dim=output_dim, **kwargs)
 
     if freeze_body:
-        for name, param in model.named_parameters():
-            if not name.startswith('decoder') or not name.startswith('head'):
-                param.requires_grad = False
+        if classifier:
+            for name, param in model.named_parameters():
+                if not not name.startswith('classification'):
+                    param.requires_grad = False
+
+        else:
+            for name, param in model.named_parameters():
+                if not name.startswith('decoder'):
+                    param.requires_grad = False
 
     return model
 

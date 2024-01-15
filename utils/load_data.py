@@ -168,7 +168,7 @@ def load_data(x_train, y_train, x_val, y_val, x_test, y_test, device, with_augme
     """
     Loads the data from the data folder.
     """
-    if model_name == 'SatMAE':
+    if model_name == 'SatMAE' or model_name == 'SatMAE_classifier':
         if downstream_task == 'lc':
             cb_decoder = callback_decoder_landcover_satmae
         else:
@@ -199,6 +199,7 @@ def load_data(x_train, y_train, x_val, y_val, x_test, y_test, device, with_augme
                 cb_preprocess = callback_preprocess_landcover_satmae
             else:
                 cb_preprocess = callback_preprocess_satmae
+        
         elif model_name == 'prithvi':
             if downstream_task == 'lc':
                 cb_preprocess = callback_preprocess_landcover_prithvi

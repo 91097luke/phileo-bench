@@ -271,7 +271,7 @@ class PrithviClassifier(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        self.patch_embed = PatchEmbed(img_size, patch_size,num_frames, tubelet_size, in_chans, embed_dim)
+        self.patch_embed = PatchEmbed(img_size, patch_size, num_frames, tubelet_size, in_chans, embed_dim)
         num_patches = self.patch_embed.num_patches
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
@@ -332,6 +332,7 @@ class PrithviClassifier(nn.Module):
         x = x + self.pos_embed[:, 1:, :]
 
 
+
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
@@ -350,12 +351,11 @@ class PrithviClassifier(nn.Module):
         x = x[:, :, None, :, :]
         x = self.forward_encoder(x)
         x = self.classification_head(x)
-
         return x
 
 def prithvi(checkpoint, output_dim=1, decoder_norm='batch', decoder_padding='same',
             decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280], freeze_body=True,
-            classifier=False):
+            classifier=False, inference=False):
 
     if classifier:
         model = PrithviClassifier(output_dim=output_dim,
@@ -366,17 +366,24 @@ def prithvi(checkpoint, output_dim=1, decoder_norm='batch', decoder_padding='sam
                         decoder_activation=decoder_activation, decoder_depths=decoder_depths, decoder_dims=decoder_dims,
                         **model_args)
 
-    del checkpoint['pos_embed']
-    del checkpoint['decoder_pos_embed']
+    if not inference:
+        del checkpoint['pos_embed']
+        del checkpoint['decoder_pos_embed']
 
     # load pre-trained model
     msg = model.load_state_dict(checkpoint, strict=False)
     print(msg)
 
     if freeze_body:
-        for name, param in model.named_parameters():
-            if not name.startswith('decoder') or not name.startswith('classification'):
-                param.requires_grad = False
+        if classifier:
+            for name, param in model.named_parameters():
+                if not not name.startswith('classification'):
+                    param.requires_grad = False
+
+        else:
+            for name, param in model.named_parameters():
+                if not name.startswith('decoder'):
+                    param.requires_grad = False
 
     model.float()
     return model

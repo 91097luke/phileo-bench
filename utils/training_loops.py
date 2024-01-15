@@ -225,7 +225,11 @@ class TrainBase():
             return j, val_loss
 
     def save_ckpt(self, epoch, val_loss):
-        model_sd = self.model.state_dict().copy()
+        if isinstance(m, nn.DataParallel):
+            model_sd = self.model.module.state_dict().copy()
+        else:
+            model_sd = self.model.state_dict().copy()
+
         if self.best_loss is None:
             self.best_epoch = epoch
             self.best_loss = val_loss
@@ -678,7 +682,7 @@ class TrainClassificationBuildings(TrainBase):
             metric_names = ['mse','mae','mave','acc','precision','recall','baseline_mse']
             # intermediary_values = ['mse','mae','mave','acc','tp','fp','fn','baseline_mse']
 
-            final_metrics = {'mse':running_metric[0] / (k + 1), 'mae':running_metric[1] / (k + 1), 'acc':running_metric[3]/ (k + 1)}
+            final_metrics = {'mse':running_metric[0] / (k + 1), 'mae':running_metric[1] / (k + 1), 'acc':running_metric[2]/ (k + 1)}
 
             return final_metrics
 

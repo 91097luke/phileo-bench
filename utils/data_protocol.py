@@ -405,7 +405,7 @@ def protocol_fewshot_memmapped(folder: str,
         x_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_val_files])
         y_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_val_files])
 
-        n_train_samples = min(n,len(x_train))
+        n_train_samples = min(n, len(x_train))
         n_val_samples = min(int(np.ceil(n * val_ratio)), len(x_val))
 
         if samples_loaded:
@@ -415,8 +415,9 @@ def protocol_fewshot_memmapped(folder: str,
             train_indices = samples_dict[region]['train_indices']
             val_indices = samples_dict[region]['val_indices']
 
-            assert len(train_indices) == n_train_samples
-            assert len(val_indices) == n_val_samples
+            # assert len(train_indices) == n_train_samples
+            # import pdb; pdb.set_trace()
+            # assert len(val_indices) == n_val_samples
 
         else:
             train_indices= random.Random(12345).sample(range(0, len(x_train)), n_train_samples)

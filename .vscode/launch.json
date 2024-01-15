@@ -12,7 +12,7 @@
             "program": "${file}",
             "args": ["--read_yaml=default_args.yml"],
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
         }
     ]
     

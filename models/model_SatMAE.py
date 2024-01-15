@@ -137,8 +137,8 @@ class SatMAE(nn.Module):
 
         self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
 
-        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=self.dims[-1],
-                                                                       out_channels=embed_dim*3, norm=decoder_norm, activation=decoder_activation,
+        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim*3,
+                                                                       out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
                                                                        padding=decoder_padding))
 
         self.decoder_bridge = nn.Sequential(
@@ -411,12 +411,23 @@ def satmae_vit_cnn(checkpoint, img_size=96, patch_size=8, in_chans=10, output_di
     if classifier:
         model = vit_large_classifier(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,
                                      **kwargs)
+        
+        if freeze_body:
+            for name, param in model.named_parameters():
+                if not not name.startswith('classification'):
+                    param.requires_grad = False
+
     else:
 
         model = vit_large(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,
                           decoder_norm=decoder_norm, decoder_padding=decoder_padding, decoder_activation=decoder_activation,
                           decoder_depths=decoder_depths, decoder_dims=decoder_dims,
                           **kwargs)
+        
+        if freeze_body:
+            for name, param in model.named_parameters():
+                if not name.startswith('decoder'):
+                    param.requires_grad = False
 
     state_dict = model.state_dict()
 
@@ -432,9 +443,16 @@ def satmae_vit_cnn(checkpoint, img_size=96, patch_size=8, in_chans=10, output_di
     print(msg)
 
     if freeze_body:
-        for name, param in model.named_parameters():
-            if not name.startswith('decoder') or not name.startswith('classification'):
-                param.requires_grad = False
+        if classifier:
+            for name, param in model.named_parameters():
+                if not not name.startswith('classification'):
+                    param.requires_grad = False
+
+        else:
+            for name, param in model.named_parameters():
+                if not name.startswith('decoder'):
+                    param.requires_grad = False
+
 
     return model
 

@@ -259,7 +259,7 @@ class ViTCNN_gc_wSkip(nn.Module):
         # CNN Decoder Blocks:
         self.depths = decoder_depths
         self.dims = decoder_dims
-        # self.dims[-1] = int(embed_dim*3)
+        embedding_dim = int(embed_dim*3)
         self.decoder_blocks = []
         for i in reversed(range(len(self.depths))):
             decoder_block = CoreDecoderBlock(
@@ -274,9 +274,13 @@ class ViTCNN_gc_wSkip(nn.Module):
 
         self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
 
-        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim*3,
-                                                                       out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
-                                                                       padding=decoder_padding))
+        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embedding_dim,
+                                                                       out_channels=embedding_dim, norm='batch',
+                                                                       activation='relu', padding='same'),
+                                                      CoreEncoderBlock(depth=1, in_channels=embedding_dim,
+                                                                       out_channels=self.dims[-1], norm='batch',
+                                                                       activation='relu', padding='same')
+                                                      )
 
         self.decoder_bridge = nn.Sequential(
             CoreCNNBlock(self.dims[-1], self.dims[-1],  norm=decoder_norm, activation=decoder_activation,
@@ -289,29 +293,23 @@ class ViTCNN_gc_wSkip(nn.Module):
             nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
         )
 
-        self.skip_resample_blocks = [CoreCNNBlock(embed_dim*3, self.dims[-1], norm=decoder_norm,
-                                                  activation=decoder_activation,
-                                                  padding=decoder_padding),
+        self.skip_resample_blocks = [CoreEncoderBlock(depth=1, in_channels=embedding_dim,
+                                                      out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
+                                                      padding=decoder_padding),
 
-                                     UpsampleBlock(depth=1, in_channels=embed_dim*3,
-                                                   out_channels=self.dims[-2], norm=decoder_norm,
-                                                   activation=decoder_activation,
-                                                   padding=decoder_padding, scale_factor=2),
+                                     CoreCNNBlock(embedding_dim, self.dims[-2], norm=decoder_norm,
+                                           activation=decoder_activation,
+                                           padding=decoder_padding),
 
-                                     UpsampleBlock(depth=1, in_channels=embed_dim*3,
-                                                   out_channels=self.dims[-3], norm=decoder_norm,
-                                                   activation=decoder_activation,
-                                                   padding=decoder_padding, scale_factor=4),
+                                     UpsampleBlock(depth=1, in_channels=embedding_dim,
+                                               out_channels=self.dims[-3], norm=decoder_norm,
+                                               activation=decoder_activation,
+                                               padding=decoder_padding, scale_factor=2),
 
-                                     nn.Sequential(UpsampleBlock(depth=1, in_channels=embed_dim*3,
-                                                                 out_channels=self.dims[-3], norm=decoder_norm,
-                                                                 activation=decoder_activation,
-                                                                 padding=decoder_padding, scale_factor=2),
-                                                   UpsampleBlock(depth=1, in_channels=self.dims[-3],
-                                                                 out_channels=self.dims[-4], norm=decoder_norm,
-                                                                 activation=decoder_activation,
-                                                                 padding=decoder_padding, scale_factor=4)
-                                                   )
+                                     UpsampleBlock(depth=1, in_channels=embedding_dim,
+                                            out_channels=self.dims[-4], norm=decoder_norm,
+                                            activation=decoder_activation,
+                                            padding=decoder_padding, scale_factor=4),
                                      ]
 
         self.skip_resample_blocks = nn.ModuleList(self.skip_resample_blocks)
@@ -421,28 +419,28 @@ class ViTCNN_gc_wSkip(nn.Module):
         return x
 
 
-def vit_base_gc(**kwargs):
+def vit_base_gc_wSkip(**kwargs):
     model = ViTCNN_gc_wSkip(
         channel_embed=256, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_large_gc(**kwargs):
+def vit_large_gc_wSkip(**kwargs):
     model = ViTCNN_gc_wSkip(
         channel_embed=256, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_huge_gc(**kwargs):
+def vit_huge_gc_wSkip(**kwargs):
     model = ViTCNN_gc_wSkip(
         embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_base(**kwargs):
+def vit_base_wSkip(**kwargs):
     model = ViTCNN_wSkip(embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
                    norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
@@ -462,7 +460,7 @@ def vit_huge(**kwargs):
 
 def vit_cnn_gc_wSkip(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
 
-    model = vit_base_gc(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,  **kwargs)
+    model = vit_base_gc_wSkip(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,  **kwargs)
     state_dict = model.state_dict()
 
     for k in ['pos_embed', 'patch_embed.proj.weight', 'patch_embed.proj.bias', 'head.weight', 'head.bias']:
@@ -483,7 +481,7 @@ def vit_cnn_gc_wSkip(checkpoint, img_size=128, patch_size=4, in_chans=10, output
 
 def vit_cnn_wSkip(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
 
-    model = vit_large(chw=(in_chans, img_size, img_size), patch_size=patch_size, output_dim=output_dim,  **kwargs)
+    model = vit_large_wSkip(chw=(in_chans, img_size, img_size), patch_size=patch_size, output_dim=output_dim,  **kwargs)
     state_dict = model.state_dict()
 
     for k in ['pos_embed', 'patch_embed.proj.weight', 'patch_embed.proj.bias', 'head.weight', 'head.bias']:
@@ -527,7 +525,9 @@ def get_core_decoder_kwargs(output_dim, core_size, full_unet=True, **kwargs):
 
 
 if __name__ == '__main__':
-    sd = torch.load('/phileo_data/pretrained_models/31102023_MaskedAutoencoderViT/MaskedAutoencoderViT_ckpt.pt', map_location='cpu')
-    model = vit_base_gc()
+    device = 'cpu'
+    path_model_weights = '/home/phimultigpu/phileo_NFS/phileo_data/pretrained_models/03112023_MaskedAutoencoderGroupChannelViT/MaskedAutoencoderGroupChannelViT_ckpt.pt'
+    sd = torch.load(path_model_weights, map_location=device)
+    vit_kwargs = get_core_decoder_kwargs(output_dim=11, core_size='core_nano')
+    model = vit_cnn_gc_wSkip(checkpoint=sd, freeze_body=True, **vit_kwargs)
     x = model(torch.randn((4, 10, 128, 128)))
-    print()

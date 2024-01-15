@@ -76,27 +76,36 @@ class Resnet50_Classifier(nn.Module):
             model = resnet50()
 
         self.encoder = nn.Sequential(*list(model.children())[:-1])
-        self.head = nn.Sequential(nn.Flatten(start_dim=1, end_dim=-1),
+        self.classification_head = nn.Sequential(nn.Flatten(start_dim=1, end_dim=-1),
                                   nn.Linear(2048, output_dim))
 
     def forward(self, x):
         # order S2 bands: 0-B02, 1-B03, 2-B04, 3-B08, 4-B05, 5-B06, 6-B07, 7-B8A, 8-B11, 9-B12
         x = x[:, (2, 1, 0), :, :] # select RGB bands
         x = self.encoder(x)
-        x = self.head(x)
+        x = self.classification_head(x)
         return x
 
 def resnet(imagenet_weights, output_dim=1, freeze_body=True, classifier=False, **kwargs):
 
     if classifier:
         model = Resnet50_Classifier(output_dim=output_dim, imagenet_weights=imagenet_weights)
+        
+
+
     else:
         model = Resnet50(output_dim=output_dim, imagenet_weights=imagenet_weights, **kwargs)
 
     if freeze_body:
-        for name, param in model.named_parameters():
-            if not name.startswith('decoder') or not name.startswith('head'):
-                param.requires_grad = False
+        if classifier:
+            for name, param in model.named_parameters():
+                if not not name.startswith('classification'):
+                    param.requires_grad = False
+
+        else:
+            for name, param in model.named_parameters():
+                if not name.startswith('decoder'):
+                    param.requires_grad = False
 
     return model
 

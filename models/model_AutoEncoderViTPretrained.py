@@ -70,8 +70,8 @@ class ViTCNN(nn.Module):
         self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim,
                                                                        out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
                                                                        padding=decoder_padding),
-                                                      CoreEncoderBlock(depth=1, in_channels=self.dims[-1],
-                                                                       out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
+                                                      CoreEncoderBlock(depth=1, in_channels=embed_dim,
+                                                                       out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
                          padding=decoder_padding)
                                                       )
 
