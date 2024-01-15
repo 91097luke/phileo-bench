@@ -1,11 +1,12 @@
-from models.model_SatMAE import SatMAE, CoreDecoderBlock, CoreEncoderBlock
-from models.model_CoreCNN import CoreCNNBlock
+from models.model_SatMAE import SatMAE
+from models.model_DecoderUtils import CoreDecoder, EncoderBlock
 import torch.nn as nn
 import torch
 from functools import partial
 from collections import OrderedDict
 from timm.models.vision_transformer import PatchEmbed, Block
 from utils.transformer_utils import get_2d_sincos_pos_embed, get_1d_sincos_pos_embed_from_grid
+
 
 
 class ViTCNN(nn.Module):
@@ -47,38 +48,20 @@ class ViTCNN(nn.Module):
         # CNN Decoder Blocks:
         self.depths = decoder_depths
         self.dims = decoder_dims
-        # self.dims[-1] = embed_dim
-        self.decoder_blocks = []
-        for i in reversed(range(len(self.depths))):
-            decoder_block = CoreDecoderBlock(
-                self.depths[i],
-                self.dims[i],
-                self.dims[i - 1] if i > 0 else self.dims[0],
-                norm=decoder_norm,
-                activation=decoder_activation,
-                padding=decoder_padding,
-            )
-            self.decoder_blocks.append(decoder_block)
+        self.decoder_head = CoreDecoder(embedding_dim=embed_dim,
+                                        output_dim=output_dim,
+                                        depths=decoder_depths, 
+                                        dims= decoder_dims)
+        
 
-        self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
-
-        self.decoder_bridge = nn.Sequential(
-            CoreCNNBlock(self.dims[-1], self.dims[-1], norm=decoder_norm, activation=decoder_activation,
-                         padding=decoder_padding),
-        )
-
-        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim,
-                                                                       out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
-                                                                       padding=decoder_padding),
-                                                      CoreEncoderBlock(depth=1, in_channels=embed_dim,
-                                                                       out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
-                         padding=decoder_padding)
+        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embed_dim,
+                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
+                                                                   padding=decoder_padding),
+                                                      EncoderBlock(depth=1, in_channels=embed_dim,
+                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation, 
+                                                                   padding=decoder_padding)
                                                       )
 
-        self.decoder_head = nn.Sequential(
-            CoreCNNBlock(self.dims[0], self.dims[0], norm='batch', activation='relu', padding='same'),
-            nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
-        )
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
@@ -135,11 +118,6 @@ class ViTCNN(nn.Module):
 
         return x
 
-    def forward_decoder(self, x):
-        for block in self.decoder_blocks:
-            x = block(x)
-        return x
-
     def reshape(self, x):
         # Separate channel axis
         N, L, D = x.shape
@@ -152,8 +130,6 @@ class ViTCNN(nn.Module):
         x = self.forward_encoder(x)
         x = self.reshape(x)
         x = self.decoder_downsample_block(x)
-        x = self.decoder_bridge(x)
-        x = self.forward_decoder(x)
         x = self.decoder_head(x)
         return x
 
@@ -164,12 +140,12 @@ class ViTCNN_gc(SatMAE):
         super(ViTCNN_gc, self).__init__(**kwargs)
 
         embedding_dim = int(kwargs['embed_dim']*3)
-        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embedding_dim,
-                                                                       out_channels=embedding_dim, norm='batch',
+        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embedding_dim,
+                                                                   out_channels=embedding_dim, norm='batch',
                                                                        activation='relu', padding='same'),
-                                                      CoreEncoderBlock(depth=1, in_channels=embedding_dim,
-                                                                       out_channels=self.dims[-1], norm='batch',
-                                                                       activation='relu', padding='same')
+                                                      EncoderBlock(depth=1, in_channels=embedding_dim,
+                                                                   out_channels=embedding_dim, norm='batch',
+                                                                   activation='relu', padding='same')
                                                       )
 
 

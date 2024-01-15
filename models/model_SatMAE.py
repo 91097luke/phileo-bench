@@ -2,81 +2,13 @@ from functools import partial
 
 import torch
 import torch.nn as nn
-from models.model_AutoEncoderViT import AutoencoderViT
+from models.model_DecoderUtils import CoreDecoder, EncoderBlock
 
 from timm.models.vision_transformer import PatchEmbed, Block
 import timm
 from collections import OrderedDict
 from utils.transformer_utils import get_2d_sincos_pos_embed, get_1d_sincos_pos_embed_from_grid
 from models.model_CoreCNN import CoreCNNBlock, get_activation
-
-class CoreEncoderBlock(nn.Module):
-    def __init__(self, depth, in_channels, out_channels, norm="batch", activation="relu", padding="same"):
-        super(CoreEncoderBlock, self).__init__()
-
-        self.depth = depth
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.activation = activation
-        self.norm = norm
-        self.padding = padding
-
-        self.blocks = []
-        for i in range(self.depth):
-            _in_channels = self.in_channels if i == 0 else self.out_channels
-            block = CoreCNNBlock(_in_channels, self.out_channels, norm=self.norm, activation=self.activation,
-                                 padding=self.padding)
-
-            self.blocks.append(block)
-
-        self.blocks = nn.Sequential(*self.blocks)
-        self.downsample = nn.MaxPool2d(kernel_size=2, stride=2)
-
-    def forward(self, x):
-        for i in range(self.depth):
-            x = self.blocks[i](x)
-
-        x = self.downsample(x)
-
-        return x
-
-
-class CoreDecoderBlock(nn.Module):
-    def __init__(self, depth, in_channels, out_channels, *, norm="batch", activation="relu", padding="same"):
-        super(CoreDecoderBlock, self).__init__()
-
-        self.depth = depth
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.activation_blocks = activation
-        self.activation = get_activation(activation)
-        self.norm = norm
-        self.padding = padding
-
-        self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
-        self.match_channels = CoreCNNBlock(self.in_channels, self.out_channels, norm=self.norm,
-                                           activation=self.activation_blocks, padding=self.padding)
-        # self.attention = CoreAttentionBlock(self.in_channels, self.in_channels, norm=self.norm,
-        #                                     activation=self.activation_blocks, padding=self.padding)
-
-        self.blocks = []
-        for _ in range(self.depth):
-            block = CoreCNNBlock(self.out_channels, self.out_channels, norm=self.norm,
-                                 activation=self.activation_blocks, padding=self.padding)
-            self.blocks.append(block)
-
-        self.blocks = nn.Sequential(*self.blocks)
-
-    def forward(self, x):
-        x = self.upsample(x)
-        # attn_s, attn_c = self.attention(x, skip)
-        # x = torch.cat([x, (skip * attn_s) + (skip + attn_c)], dim=1)
-        x = self.match_channels(x)
-
-        for i in range(self.depth):
-            x = self.blocks[i](x)
-
-        return x
 
 
 class SatMAE(nn.Module):
@@ -122,35 +54,17 @@ class SatMAE(nn.Module):
         # CNN Decoder Blocks:
         self.depths = decoder_depths
         self.dims = decoder_dims
-        # self.dims[-1] = int(embed_dim*3)
-        self.decoder_blocks = []
-        for i in reversed(range(len(self.depths))):
-            decoder_block = CoreDecoderBlock(
-                self.depths[i],
-                self.dims[i],
-                self.dims[i - 1] if i > 0 else self.dims[0],
-                norm=decoder_norm,
-                activation=decoder_activation,
-                padding=decoder_padding,
-            )
-            self.decoder_blocks.append(decoder_block)
 
-        self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
+        self.decoder_head = CoreDecoder(embedding_dim=embed_dim*3,
+                                        output_dim=output_dim,
+                                        depths=decoder_depths, 
+                                        dims= decoder_dims)
 
-        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim*3,
-                                                                       out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
-                                                                       padding=decoder_padding))
 
-        self.decoder_bridge = nn.Sequential(
-            CoreCNNBlock(self.dims[-1], self.dims[-1],  norm=decoder_norm, activation=decoder_activation,
-                         padding=decoder_padding),
-        )
+        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embed_dim*3,
+                                                                   out_channels=embed_dim*3, norm=decoder_norm, activation=decoder_activation,
+                                                                   padding=decoder_padding))
 
-        self.decoder_head = nn.Sequential(
-            CoreCNNBlock(self.dims[0], self.dims[0], norm=decoder_norm, activation=decoder_activation,
-                         padding=decoder_padding),
-            nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
-        )
         self.initialize_weights()
 
     def initialize_weights(self):
@@ -220,11 +134,6 @@ class SatMAE(nn.Module):
 
         return x
 
-    def forward_decoder(self, x):
-        for block in self.decoder_blocks:
-            x = block(x)
-        return x
-
     def reshape(self, x):
         # Separate channel axis
         N, GL, D = x.shape
@@ -245,8 +154,6 @@ class SatMAE(nn.Module):
         x = self.forward_encoder(x)
         x = self.reshape(x)
         x = self.decoder_downsample_block(x)
-        x = self.decoder_bridge(x)
-        x = self.forward_decoder(x)
         x = self.decoder_head(x)
         return x
 

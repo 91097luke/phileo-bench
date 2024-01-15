@@ -348,6 +348,8 @@ def get_args():
     parser.add_argument('--data_path_128_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/')
     parser.add_argument('--data_path_224_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/')
     parser.add_argument('--data_path_224_30m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/')
+    parser.add_argument('--data_parallel', type=bool, default=False)
+
 
 
     return parser,parser_yaml
@@ -356,7 +358,7 @@ def get_args():
 def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
          early_stop:int=25, epochs:int=250, input_channels:int=10, input_size:int=128, lr:float=0.001, lr_scheduler:str=None,
          n_shot:int=None, num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val=True, warmup=False, pretrained_model_path=None, freeze_pretrained=None,
-         data_path_128_10m=None, data_path_224_10m=None, data_path_224_30m=None):
+         data_path_128_10m=None, data_path_224_10m=None, data_path_224_30m=None, data_parallel:bool=False):
 
     init_lr = lr
     # device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -452,10 +454,11 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
                                                     )
     
 
-    if torch.cuda.device_count() > 1 and model_name.split('_')[-1] != 'wSkip' :
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
-        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-        model = nn.DataParallel(model)
+    if data_parallel:
+        if torch.cuda.device_count() > 1 and model_name.split('_')[-1] != 'wSkip' :
+            print("Let's use", torch.cuda.device_count(), "GPUs!")
+            # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+            model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
  
     model.to(device)
 

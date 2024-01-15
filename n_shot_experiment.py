@@ -14,7 +14,6 @@ from utils.training_utils import read_yaml
 
 parser, parser_yaml = training_script.get_args()
 args_yaml, remainder = parser_yaml.parse_known_args()
-torch.cuda.set_device(1)
 
 if args_yaml.read_yaml is not None:
     print(f"WARNING: overwriting all parameters with defaults stored in {args_yaml.read_yaml}")
@@ -37,12 +36,9 @@ for downstream_task in ['building', ]: #
     folder = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/'
 
     for n_shot in [50, 100, 500, 1000, 5000]:  
-        model_list = ['vit_cnn_gc_wSkip', ] 
-        
-        # 'GeoAware_core_nano', 'vit_cnn_gc_wSkip'
-        # 'GeoAware_contrastive_core_nano', 'vit_cnn_base', 'vit_cnn', 'vit_cnn_gc', 
-        # 'core_unet_nano', 'GeoAware_mh_pred_core_nano', 'SatMAE', 
-        #                'seasonal_contrast', 'resnet_imagenet', 'prithvi'
+        model_list = [   'vit_cnn_gc',] 
+
+        # 'GeoAware_core_nano', 'vit_cnn_gc_wSkip' 'GeoAware_contrastive_core_nano', 'vit_cnn_base', 'GeoAware_mh_pred_core_nano', 'core_unet_nano', 'SatMAE', 'seasonal_contrast', 'resnet_imagenet', 'prithvi', 'vit_cnn',
         
 
         for model_name in model_list:
@@ -79,7 +75,7 @@ for downstream_task in ['building', ]: #
                 training_script.main(**vars(args))
           
             else:
-                for freeze in [False, True]:
+                for freeze in [False]:
                     args['freeze_pretrained'] = freeze
                     training_script.main(**vars(args))
 

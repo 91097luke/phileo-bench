@@ -225,10 +225,7 @@ class TrainBase():
             return j, val_loss
 
     def save_ckpt(self, epoch, val_loss):
-        if isinstance(m, nn.DataParallel):
-            model_sd = self.model.module.state_dict().copy()
-        else:
-            model_sd = self.model.state_dict().copy()
+        model_sd = self.model.state_dict().copy()
 
         if self.best_loss is None:
             self.best_epoch = epoch
@@ -339,6 +336,13 @@ class TrainBase():
             outputs = self.model(images)
             self.val_visualize(images.detach().cpu().numpy(), labels.detach().cpu().numpy(),
                                outputs.detach().cpu().numpy(), name='test')
+            
+        if isinstance(self.model, nn.DataParallel):
+            model_sd = self.model.module.state_dict().copy()
+        else:
+            model_sd = self.model.state_dict().copy()
+
+        torch.save(model_sd, os.path.join(self.out_folder, f"{self.name}_final.pt"))
 
     def save_info(self, model_summary=None, n_shot=None, p_split=None, warmup=None, lr=None):
         artifacts = {'training_parameters': {'model': self.name,

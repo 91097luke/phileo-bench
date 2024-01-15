@@ -20,8 +20,8 @@ from timm.models.layers import to_2tuple
 import numpy as np
 
 from einops import rearrange
-from models.model_SatMAE import CoreEncoderBlock, CoreDecoderBlock, CoreCNNBlock
 from utils.Prithvi_100M_config import model_args, data_mean, data_std
+from models.model_DecoderUtils import CoreDecoder
 
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     """
@@ -154,34 +154,15 @@ class Prithvi(nn.Module):
         # CNN Decoder Blocks:
         self.depths = decoder_depths
         self.dims = decoder_dims
-        # self.dims[-1] = embed_dim
         self.output_dim = output_dim
-        self.decoder_blocks = []
 
-        for i in reversed(range(len(self.depths))):
-            decoder_block = CoreDecoderBlock(
-                self.depths[i],
-                self.dims[i],
-                self.dims[i - 1] if i > 0 else self.dims[0],
-                norm=decoder_norm,
-                activation=decoder_activation,
-                padding=decoder_padding,
-            )
-            self.decoder_blocks.append(decoder_block)
-
-        self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
-
+        self.decoder_head = CoreDecoder(embedding_dim=embed_dim,
+                                        output_dim=output_dim,
+                                        depths=decoder_depths, 
+                                        dims= decoder_dims)
+        
         self.decoder_downsample_block = nn.Identity()
 
-        self.decoder_bridge = nn.Sequential(
-            CoreCNNBlock(embed_dim, self.dims[-1], norm=decoder_norm, activation=decoder_activation,
-                         padding=decoder_padding),
-        )
-
-        self.decoder_head = nn.Sequential(
-            CoreCNNBlock(self.dims[0], self.dims[0], norm=decoder_norm, activation=decoder_activation, padding=decoder_padding),
-            nn.Conv2d(self.dims[0], self.output_dim, kernel_size=1, padding=0),
-        )
         self.initialize_weights()
         self.norm_pix_loss = norm_pix_loss
 
@@ -236,10 +217,6 @@ class Prithvi(nn.Module):
 
         return x
 
-    def forward_decoder(self, x):
-        for block in self.decoder_blocks:
-            x = block(x)
-        return x
 
     def reshape(self, x):
         # Separate channel axis
@@ -254,8 +231,6 @@ class Prithvi(nn.Module):
         x = self.forward_encoder(x)
         x = self.reshape(x)
         x = self.decoder_downsample_block(x)
-        x = self.decoder_bridge(x)
-        x = self.forward_decoder(x)
         x = self.decoder_head(x)
         return x
 

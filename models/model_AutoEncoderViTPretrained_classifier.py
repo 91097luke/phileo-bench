@@ -1,4 +1,4 @@
-from models.model_SatMAE import SatMAE_Classifier, CoreEncoderBlock
+from models.model_SatMAE import SatMAE_Classifier
 from models.model_CoreCNN import CoreCNNBlock
 import torch.nn as nn
 import torch

@@ -1,4 +1,4 @@
-from models.model_SatMAE import CoreEncoderBlock
+from models.model_DecoderUtils import EncoderBlock
 from models.model_CoreCNN import CoreCNNBlock, CoreDecoderBlock, get_activation, get_normalization
 import torch.nn as nn
 import torch
@@ -99,15 +99,15 @@ class ViTCNN_wSkip(nn.Module):
                          padding=decoder_padding),
         )
 
-        self.decoder_downsample_block = nn.Sequential(CoreEncoderBlock(depth=1, in_channels=embed_dim,
+        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embed_dim,
                                                                        out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
                                                                        padding=decoder_padding),
-                                                      CoreEncoderBlock(depth=1, in_channels=embed_dim,
+                                                      EncoderBlock(depth=1, in_channels=embed_dim,
                                                                        out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
                                                                        padding=decoder_padding)
                                                       )
 
-        self.skip_resample_blocks = [CoreEncoderBlock(depth=1, in_channels=embed_dim,
+        self.skip_resample_blocks = [EncoderBlock(depth=1, in_channels=embed_dim,
                                                       out_channels=self.dims[-1], norm=decoder_norm, activation=decoder_activation,
                                                       padding=decoder_padding),
 

@@ -1,9 +1,9 @@
-experiment_name: nshot_experiments_eo-hpc
+experiment_name: test
 model_name: core_unet_nano
 lr: 0.0001
 lr_scheduler: reduce_on_plateau
-batch_size: 64
-epochs: 500
+batch_size: 32
+epochs: 1
 vis_val: True
 downstream_task: lc
 input_channels: 10
@@ -22,3 +22,4 @@ freeze_pretrained:
 data_path_128_10m: /home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/
 data_path_224_10m: /home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/
 data_path_224_30m: /home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/
+data_parallel: False
