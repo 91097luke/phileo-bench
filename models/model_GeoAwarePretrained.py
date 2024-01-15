@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from models.model_Mixer import Mixer, CNNBlock
 from models.model_CoreCNN import CoreEncoder, CoreCNNBlock, CoreUnet, CoreUnet_combined
-from models.model_FeatureExtracter import GeoPretrainedFeatureExtractor
 from models.model_Mixer_versions import Mixer_tiny
 from collections import OrderedDict
 
@@ -75,6 +74,47 @@ class CoreEncoderGeoPretrained(nn.Module):
         model_sd.update(shared_weights)
 
         return model_sd, shared_weights
+
+    def forward(self, identity):
+        x = self.coreunet.forward(identity)
+        # x = self.head(x)
+        return x
+
+
+class CoreEncoderGeoAutoEncoder(nn.Module):
+    def __init__(self,
+                 output_dim,
+                 checkpoint,
+                 core_encoder_kwargs,
+                 freeze_body=True,
+                 ):
+        self.freeze_body = freeze_body
+        super(CoreEncoderGeoAutoEncoder, self).__init__()
+
+        self.coreunet = CoreUnet(**core_encoder_kwargs)
+
+        assert output_dim == core_encoder_kwargs[
+            'output_dim'], f"output dim {output_dim} but core_unet will output {core_encoder_kwargs['output_dim']}"
+
+        for k in ['decoder_blocks.0.match_channels.match_channels.0.weight',
+                  'decoder_blocks.0.match_channels.conv1.weight',
+                  'decoder_blocks.1.match_channels.match_channels.0.weight',
+                  'decoder_blocks.1.match_channels.conv1.weight',
+                  'decoder_blocks.2.match_channels.match_channels.0.weight',
+                  'decoder_blocks.2.match_channels.conv1.weight',
+                  'decoder_blocks.3.match_channels.conv1.weight',
+                  'head.1.weight',
+                  'head.1.bias']:
+
+            print(f"Removing key {k} from pretrained checkpoint")
+            del checkpoint[k]
+
+        self.coreunet.load_state_dict(checkpoint, strict=False)
+
+        if self.freeze_body:
+            for name, param in self.coreunet.named_parameters():
+                if name.startswith('stem') or name.startswith('encoder'):
+                    param.requires_grad = False
 
     def forward(self, identity):
         x = self.coreunet.forward(identity)
@@ -198,10 +238,9 @@ if __name__ == '__main__':
     # mixer_kwargs = get_mixer_kwargs(chw=(10,128,128), output_dim=641, mixer_size='mixer_nano')
     # model = MixerGeoPretrained(output_dim=1,checkpoint=sd, mixer_kwargs=mixer_kwargs, freeze_body=True)
 
-    sd_1 = torch.load('/phileo_data/GeoAware_results/trained_models/12102023_CoreEncoder_LEO_geoMvMF_augm/CoreEncoder_last_8.pt')
-    sd_2 = torch.load('/home/lcamilleri/git_repos/Phileo-contrastive-geographical-expert/trained_models/contrastive/27102023_CoreEncoderMultiHead_geo_reduce_on_plateau/CoreEncoderMultiHead_best.pt')
+    sd_1 = torch.load('/home/lcamilleri/git_repos/phileo-testbed/models/test.pt')
     core_kwargs = get_core_encoder_kwargs(output_dim=1, input_dim=10, core_size='core_nano')
-    model = CoreEncoderGeoPretrained_combined(1, checkpoint_1=sd_1, checkpoint_2=sd_2,core_encoder_kwargs=core_kwargs)
+    model = CoreEncoderGeoAutoEncoder(1, checkpoint=sd_1 ,core_encoder_kwargs=core_kwargs)
 
 
     #model.load_state_dict(sd)

@@ -1,5 +1,5 @@
-from models.model_SatMAE import SatMAE
-from models.model_DecoderUtils import CoreDecoder, EncoderBlock
+from models.model_SatMAE import SatMAE_Classifier
+from models.model_CoreCNN import CoreCNNBlock
 import torch.nn as nn
 import torch
 from functools import partial
@@ -8,16 +8,13 @@ from timm.models.vision_transformer import PatchEmbed, Block
 from utils.transformer_utils import get_2d_sincos_pos_embed, get_1d_sincos_pos_embed_from_grid
 
 
-
-class ViTCNN(nn.Module):
+class ViTCNN_Classifier(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
 
     def __init__(self, chw:tuple=(10, 64, 64), patch_size:int=4, output_dim:int=10,
                  embed_dim=768, depth=12, num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, noisy_mask_token=True,
-                 decoder_norm='batch', decoder_padding='same',
-                 decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280]
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  ):
         super().__init__()
 
@@ -26,7 +23,6 @@ class ViTCNN(nn.Module):
         self.in_c = chw[0]
         self.img_size = chw[1]
         self.patch_size = patch_size
-        self.noisy_mask_token = noisy_mask_token
         self.output_dim = output_dim
 
         # --------------------------------------------------------------------------
@@ -34,7 +30,7 @@ class ViTCNN(nn.Module):
         self.patch_embed = PatchEmbed(self.img_size, patch_size, self.in_c, embed_dim)
         num_patches = self.patch_embed.num_patches
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim),  requires_grad=True)
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim),
                                       requires_grad=False)  # learnable with sin-cos embedding init
 
@@ -46,23 +42,11 @@ class ViTCNN(nn.Module):
 
         # --------------------------------------------------------------------------
         # CNN Decoder Blocks:
-        self.depths = decoder_depths
-        self.dims = decoder_dims
-        self.decoder_head = CoreDecoder(embedding_dim=embed_dim,
-                                        output_dim=output_dim,
-                                        depths=decoder_depths, 
-                                        dims= decoder_dims)
-        
-
-        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embed_dim,
-                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
-                                                                   padding=decoder_padding),
-                                                      EncoderBlock(depth=1, in_channels=embed_dim,
-                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation, 
-                                                                   padding=decoder_padding)
-                                                      )
-
-        # --------------------------------------------------------------------------
+        self.classification_head = nn.Sequential(nn.Linear(in_features=embed_dim, out_features=int(embed_dim / 2)),
+                                                 nn.LayerNorm(int(embed_dim / 2)),
+                                                 nn.ReLU(),
+                                                 nn.Linear(in_features=int(embed_dim / 2), out_features=output_dim)
+                                                 )
 
         self.norm_pix_loss = norm_pix_loss
 
@@ -113,84 +97,68 @@ class ViTCNN(nn.Module):
             x = blk(x)
         x = self.norm(x)
 
-        # remove cls token
-        x = x[:, 1:, :]
+        # # global pooling
+        # x = x.mean(dim=1)
 
-        return x
-
-    def reshape(self, x):
-        # Separate channel axis
-        N, L, D = x.shape
-        x = x.permute(0, 2, 1)
-        x = x.view(N, D, int(L ** 0.5), int(L ** 0.5))
+        # return cls token
+        x = x[:, 0, :]
 
         return x
 
     def forward(self, x):
         x = self.forward_encoder(x)
-        x = self.reshape(x)
-        x = self.decoder_downsample_block(x)
-        x = self.decoder_head(x)
+        x = self.classification_head(x)
         return x
 
 
-class ViTCNN_gc(SatMAE):
+class ViTCNN_gc_Classifier(SatMAE_Classifier):
 
     def __init__(self, **kwargs):
-        super(ViTCNN_gc, self).__init__(**kwargs)
-
-        embedding_dim = int(kwargs['embed_dim']*3)
-        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embedding_dim,
-                                                                   out_channels=embedding_dim, norm='batch',
-                                                                       activation='relu', padding='same'),
-                                                      EncoderBlock(depth=1, in_channels=embedding_dim,
-                                                                   out_channels=embedding_dim, norm='batch',
-                                                                   activation='relu', padding='same')
-                                                      )
+        super(ViTCNN_gc_Classifier, self).__init__(**kwargs)
 
 
-def vit_base_gc(**kwargs):
-    model = ViTCNN_gc(
+def vit_base_gc_classifier(**kwargs):
+    model = ViTCNN_gc_Classifier(
         channel_embed=256, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_large_gc(**kwargs):
-    model = ViTCNN_gc(
+def vit_large_gc_classifier(**kwargs):
+    model = ViTCNN_gc_Classifier(
         channel_embed=256, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_huge_gc(**kwargs):
-    model = ViTCNN_gc(
+def vit_huge_gc_classifier(**kwargs):
+    model = ViTCNN_gc_Classifier(
         embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_base(**kwargs):
-    model = ViTCNN(embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
+def vit_base_classifier(**kwargs):
+    model = ViTCNN_Classifier(embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
                    norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_large(**kwargs):
-    model = ViTCNN(embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+def vit_large_classifier(**kwargs):
+    model = ViTCNN_Classifier(embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
                    norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_huge(**kwargs):
-    model = ViTCNN(embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4,
+def vit_huge_classifier(**kwargs):
+    model = ViTCNN_Classifier(embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4,
                    norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
-def vit_cnn_gc(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
+def vit_cnn_gc_classifier(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
 
-    model = vit_base_gc(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,  **kwargs)
+    model = vit_base_gc_classifier(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim, **kwargs)
     state_dict = model.state_dict()
 
     for k in ['pos_embed', 'patch_embed.proj.weight', 'patch_embed.proj.bias', 'head.weight', 'head.bias']:
@@ -200,7 +168,7 @@ def vit_cnn_gc(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1
 
     if freeze_body:
         for name, param in model.named_parameters():
-            if not name.startswith('decoder'):
+            if not name.startswith('classification'):
                 param.requires_grad = False
 
     # load pre-trained model
@@ -209,9 +177,9 @@ def vit_cnn_gc(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1
     return model
 
 
-def vit_cnn(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
+def vit_cnn_classifier(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
 
-    model = vit_large(chw=(in_chans, img_size, img_size), patch_size=patch_size, output_dim=output_dim,  **kwargs)
+    model = vit_large_classifier(chw=(in_chans, img_size, img_size), patch_size=patch_size, output_dim=output_dim,  **kwargs)
     state_dict = model.state_dict()
 
     for k in ['pos_embed', 'patch_embed.proj.weight', 'patch_embed.proj.bias', 'head.weight', 'head.bias']:
@@ -225,37 +193,7 @@ def vit_cnn(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, f
 
     if freeze_body:
         for name, param in model.named_parameters():
-            if not name.startswith('decoder'):
+            if not name.startswith('classification'):
                 param.requires_grad = False
 
     return model
-
-
-def get_core_decoder_kwargs(output_dim, core_size, full_unet=True, **kwargs):
-    core_kwargs = {'output_dim': output_dim, 'decoder_norm': 'batch', 'decoder_padding': 'same',
-                   'decoder_activation': 'relu'}
-
-    if core_size == 'core_nano':
-        core_kwargs['decoder_depths'] = [2, 2, 8, 2]
-        core_kwargs['decoder_dims'] = [80, 160, 320, 640]
-
-    elif core_size == 'core_tiny':
-        core_kwargs['decoder_depths'] = [3, 3, 9, 3]
-        core_kwargs['decoder_dims'] = [96, 192, 384, 768]
-
-    elif core_size == 'core_base':
-        core_kwargs['decoder_depths'] = [3, 3, 27, 3]
-        core_kwargs['decoder_dims'] = [128, 256, 512, 1024]
-
-    else:
-        raise ValueError
-
-    core_kwargs.update(kwargs)
-    return core_kwargs
-
-
-if __name__ == '__main__':
-    sd = torch.load('/phileo_data/pretrained_models/31102023_MaskedAutoencoderViT/MaskedAutoencoderViT_ckpt.pt', map_location='cpu')
-    model = vit_cnn(checkpoint=sd)
-    x = model(torch.randn((4, 10, 128, 128)))
-    print()

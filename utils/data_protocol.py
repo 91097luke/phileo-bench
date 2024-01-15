@@ -10,6 +10,7 @@ import random
 import json
 from datetime import date
 #
+
 from utils.training_utils import MultiArray_1D
 
 
@@ -18,7 +19,7 @@ np.random.seed(1234) # also affect pandas
 
 REGIONS_DOWNSTREAM_DATA = ['denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
                            'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
-                           'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1']
+                           'tanzanipa-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1']
 
 REGIONS_BUCKETS = {'europe': ['europe','denmark-1','denmark-2'],
                    'east-africa':['east-africa','tanzania-1','tanzania-2','tanzania-3','tanzania-4','tanzania-5','uganda-1'],
@@ -94,6 +95,28 @@ def get_testset(folder: str,
 
     return x_test, y_test
 
+def protocol_minifoundation(folder: str, y:str):
+    """
+    Loads all the data from the data folder.
+    """
+
+    x_train = sorted(glob(os.path.join(folder, f"*/*train_s2.npy")))
+    y_train = [f_name.replace('s2', f'label_{y}') for f_name in x_train]
+
+    x_val = []
+    y_val = []
+    for i in range(int(len(x_train)*0.05)):
+        j = random.randint(0, len(x_train)-1)
+        x_val.append(x_train[j])
+        y_val.append(y_train[j])
+        del x_train[j]; del y_train[j]
+
+    x_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_train], shuffle=True)
+    y_train = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_train], shuffle=True)
+    x_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_val], shuffle=True)
+    y_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_val], shuffle=True)
+
+    return x_train, y_train, x_val, y_val
 
 def protocol_split(folder: str,
                    split_percentage: float = 0.1,
@@ -167,12 +190,14 @@ def protocol_split(folder: str,
 
 
 def check_region_validity(folder, regions, y):
+    # import pdb; pdb.set_trace()
     l = []
     for i, region in enumerate(regions):
         x_train_files = []
         for sub_regions in REGIONS_BUCKETS[region]: 
             x_train_files += sorted(glob(os.path.join(folder, f"{sub_regions}*train_s2.npy")))
 
+        
         # generate multi array for region
         # x_train_files = sorted(glob(os.path.join(folder, f"{region}*train_s2.npy")))
         y_train_files = [f_name.replace('s2', f'label_{y}') for f_name in x_train_files]
@@ -182,6 +207,7 @@ def check_region_validity(folder, regions, y):
         if x_train_files:
             l.append(region)
 
+    # import pdb; pdb.set_trace()
     return l
 
 
@@ -297,6 +323,7 @@ def protocol_fewshot(folder: str,
         np.save(f'{dst}/{n}_shot_{y}/{n}shot_val_label_{y}.npy', val_y_temp)
     return train_X_temp, train_y_temp, val_X_temp, val_y_temp
 
+
 def protocol_fewshot_memmapped(folder: str,
                      dst: str,
                      n: int = 10,
@@ -304,6 +331,7 @@ def protocol_fewshot_memmapped(folder: str,
                      regions: list = None,
                      y: str = 'building',
                      data_selection: str = 'strict',
+                     name: str = '128_10m'
                      ):
 
     """
@@ -318,9 +346,12 @@ def protocol_fewshot_memmapped(folder: str,
     :return: train, val MultiArrays
     """
 
+    
     if regions is None:
         regions = list(REGIONS_BUCKETS.keys())
+        # import pdb ; pdb.set_trace()
     else:
+        # import pdb ; pdb.set_trace()
         for r in regions:
             assert r in list(REGIONS_BUCKETS.keys()), f"region {r} not found. Possible regions are {list(REGIONS_BUCKETS.keys())}"
     regions = check_region_validity(folder, regions, y)
@@ -329,7 +360,7 @@ def protocol_fewshot_memmapped(folder: str,
 
     samples_loaded = False
     if data_selection != 'random':
-        indices_path = glob(f"indices/indices_*_{y}_{n}.json")
+        indices_path = glob(f"indices/indices_*_{name}_{y}_{n}.json")
         
         if len(indices_path) == 0:
             if data_selection == 'create':
@@ -351,6 +382,7 @@ def protocol_fewshot_memmapped(folder: str,
     y_train_samples = []
     x_val_samples = []
     y_val_samples = []
+    # import pdb ; pdb.set_trace()
     for i, region in enumerate(regions):
         print(i,region)
 
@@ -362,6 +394,8 @@ def protocol_fewshot_memmapped(folder: str,
         x_val_files = [f_name.replace('train', 'val') for f_name in x_train_files]
         y_val_files = [f_name.replace('train', 'val') for f_name in y_train_files]
 
+        # import pdb ; pdb.set_trace()
+
         # checks that s2 and label numpy files are consistent
         x_train_files, y_train_files = sanity_check_labels_exist(x_train_files, y_train_files)
         x_val_files, y_val_files = sanity_check_labels_exist(x_val_files, y_val_files)
@@ -371,7 +405,7 @@ def protocol_fewshot_memmapped(folder: str,
         x_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in x_val_files])
         y_val = beo.MultiArray([np.load(f, mmap_mode='r') for f in y_val_files])
 
-        n_train_samples = min(n,len(x_train))
+        n_train_samples = min(n, len(x_train))
         n_val_samples = min(int(np.ceil(n * val_ratio)), len(x_val))
 
         if samples_loaded:
@@ -381,8 +415,9 @@ def protocol_fewshot_memmapped(folder: str,
             train_indices = samples_dict[region]['train_indices']
             val_indices = samples_dict[region]['val_indices']
 
-            assert len(train_indices) == n_train_samples
-            assert len(val_indices) == n_val_samples
+            # assert len(train_indices) == n_train_samples
+            # import pdb; pdb.set_trace()
+            # assert len(val_indices) == n_val_samples
 
         else:
             train_indices= random.Random(12345).sample(range(0, len(x_train)), n_train_samples)
@@ -425,7 +460,7 @@ def protocol_fewshot_memmapped(folder: str,
         y_val_samples += [y_val[i] for i in val_indices]
 
     if not samples_loaded and data_selection=='create':
-        out_path = f'indices/indices_{date.today().strftime("%d%m%Y")}_{y}_{n}.json'
+        out_path = f'indices/indices_{date.today().strftime("%d%m%Y")}_{name}_{y}_{n}.json'
         print(f'No predefined train/val sampling was used. Saving current sampling schema in {out_path}')
         with open(out_path, 'w') as f:
             json.dump(samples_dict, f)

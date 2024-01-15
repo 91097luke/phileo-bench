@@ -58,7 +58,7 @@ def CoreUnet_nano(**kwargs):
     Params size (MB): 65.60
     Estimated Total Size (MB): 3459.42
     """
-    model = CoreUnet(depths=[2, 2, 8, 2], dims=[80, 160, 320, 640], **kwargs)
+    model = CoreUnet(depths=[2, 2, 8, 2], dims=[80*2, 160*2, 320*2, 640*2], **kwargs)
     return model
 
 def CoreUnet_tiny(**kwargs):
@@ -240,3 +240,22 @@ def Core_huge(**kwargs):
     """
     model = CoreEncoder(depths=[3, 3, 27, 3], dims=[352, 704, 1408, 2816], **kwargs)
     return model
+
+
+if __name__ == '__main__':
+    from torchinfo import summary
+
+    BATCH_SIZE = 4
+    CHANNELS = 10
+    HEIGHT = 96
+    WIDTH = 96
+
+    model = CoreUnet_nano(
+        input_dim=10,
+        output_dim=1,
+    )
+
+    summary(
+        model,
+        input_size=(BATCH_SIZE, CHANNELS, HEIGHT, WIDTH),
+    )
