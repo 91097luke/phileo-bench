@@ -1,7 +1,7 @@
 # PhilEO BENCH: EVALUATING GEO-SPATIAL FOUNDATION MODELS
 This repository introduces the [PhilEO Bench](https://arxiv.org/abs/2401.04464), a novel evaluation framework
 for EO Foundation Models. In an attempt to address the need to evaluate different Foundation Models on a fair and uniform benchmark, the framework comprises of a
-testbed and a novel 400GB Sentinel-2 dataset containing labels for three downstream tasks, building density estimation,
+testbed and a novel 400GB Sentinel-2 dataset containing labels for the three downstream tasks of building density estimation,
 road segmentation, and land cover classification. We present
 experiments using our framework evaluating different Foundation Models, including Prithvi and SatMAE, at multiple n-shots and convergence rates.
 ![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/MainImageToUseFoundationModel.png?raw=true)
