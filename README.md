@@ -136,6 +136,10 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 
 The main file in this GitHub repository is "training_script.py". - The Jupyter Notebook is "demo.ipynb".
 
+### Project webpage
+
+The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
+
 ### Acknowledgements
 Some code from this repository is inspired from the SatMAE (NeurIPS 2022) (SatMAE) [repository](https://github.com/sustainlab-group/SatMAE) and Prithvi [repository](https://github.com/NASA-IMPACT/hls-foundation-os).
 
