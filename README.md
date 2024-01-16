@@ -128,8 +128,16 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
   --data_parallel                                           If set True pytorch model will be wrapped in nn.data_parallel a trained on multiple gpus 
 ```
 
-### Model Weughts
+### Model Weights
 :bell:   **ALL models are available for non-commercial research purposes only.**
+
+| Model        | Description | link          |
+| :---         |    :----:   | :---          |
+| Prithvi      | Masked-AutoEncoder ViT      |[Prithvi_100M.pt](https://huggingface.co/ibm-nasa-geospatial/Prithvi-100M/blob/main/Prithvi_100M.pt)   |
+| SatMAE       | Masked-AutoEncoder ViT      |[pretrain-vit-large-e199.pth](https://zenodo.org/records/7338613)      |
+
+### Acknowledgements
+Some code from this repository is inspired from the SatMAE (NeurIPS 2022) (SatMAE) [repository](https://github.com/sustainlab-group/SatMAE) and Prithvi [repository](https://github.com/NASA-IMPACT/hls-foundation-os).
 
 ## If you use our code, please cite:
 
