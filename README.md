@@ -132,6 +132,10 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 | Prithvi      | Masked-AutoEncoder ViT      |[Prithvi_100M.pt](https://huggingface.co/ibm-nasa-geospatial/Prithvi-100M/blob/main/Prithvi_100M.pt)   |
 | SatMAE       | Masked-AutoEncoder ViT      |[pretrain-vit-large-e199.pth](https://zenodo.org/records/7338613)      |
 
+### Main files
+
+The main file in this GitHub repository is "training_script.py". - The Jupyter Notebook is "demo.ipynb".
+
 ### Acknowledgements
 Some code from this repository is inspired from the SatMAE (NeurIPS 2022) (SatMAE) [repository](https://github.com/sustainlab-group/SatMAE) and Prithvi [repository](https://github.com/NASA-IMPACT/hls-foundation-os).
 
