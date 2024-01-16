@@ -127,10 +127,16 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 ### Model Weights
 :bell:   **ALL models are available for non-commercial research purposes only.**
 
-| Model        | Description | link          |
-| :---         |    :----:   | :---          |
-| Prithvi      | Masked-AutoEncoder ViT      |[Prithvi_100M.pt](https://huggingface.co/ibm-nasa-geospatial/Prithvi-100M/blob/main/Prithvi_100M.pt)   |
-| SatMAE       | Masked-AutoEncoder ViT      |[pretrain-vit-large-e199.pth](https://zenodo.org/records/7338613)      |
+| Model        | Architecture | Link          |
+| :---         |    :----:   |           ---: |
+| Prithvi      | Masked-AutoEncoder ViT      |[Prithvi_100M](https://huggingface.co/ibm-nasa-geospatial/Prithvi-100M/blob/main/Prithvi_100M.pt)   |
+| SatMAE       | Masked-AutoEncoder ViT      |[pretrain-vit-large-e199](https://zenodo.org/records/7338613)      |
+| SeCo         | Resnet-50                   |[SeCo-1M](https://github.com/ServiceNow/seasonal-contrast?tab=readme-ov-file)|
+| Phileo-ViT   | Masked-AutoEncoder ViT      |[MaskedAutoencoderViT](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/MaskedAutoencoderViT_ckpt.pt)|
+| Phileo-ViT-Grouped-Channels   | Masked-AutoEncoder ViT      |[MaskedAutoencoderGroupChannelViT](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/MaskedAutoencoderGroupChannelViT_ckpt.pt)|
+| Phileo-GeoAware-MvMF | UNET-Encoder                   |[GeoAware-MvMF](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoder_last_8.pt)|
+| Phileo-GeoAware-PsudoContrastive         | UNET-Encoder                   |[GeoAware-PsudoContr](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_best.pt)|
+| Phileo-GeoAware-MutliheadPred         | UNET-Encoder                  |[GeoAware-MH](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_geo_pred_best.pt)|
 
 ### Main files
 
@@ -141,7 +147,10 @@ The main file in this GitHub repository is "training_script.py". - The Jupyter N
 The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
 
 ### Acknowledgements
-Some code from this repository is inspired from the SatMAE (NeurIPS 2022) (SatMAE) [repository](https://github.com/sustainlab-group/SatMAE) and Prithvi [repository](https://github.com/NASA-IMPACT/hls-foundation-os).
+Some code from this repository is inspired from: 
+- [SatMAE repository](https://github.com/sustainlab-group/SatMAE)
+- [Prithvi repository](https://github.com/NASA-IMPACT/hls-foundation-os)
+- [Sesonal-Contrast repositry](https://github.com/ServiceNow/seasonal-contrast?tab=readme-ov-file).
 
 ## If you use our code, please cite:
 
