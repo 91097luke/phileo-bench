@@ -1,5 +1,57 @@
-# phileo-testbed
-Repo for testing foundation models
+# phileo-bench
+This repository introducing the PhilEO Bench, a novel evaluation framework
+for EO Foundation Models.In an attempt to addresses the need to evaluate differ-
+ent Foundation Models on a fair and uniform benchmark The framework comprises of a
+testbed and a novel 400GB Sentinel-2 dataset containing la-
+bels for three downstream tasks, building density estimation,
+road segmentation, and land cover classification. We present
+experiments using our framework evaluating different Foun-
+dation Models, including Prithvi and SatMAE, at multiple n-
+shots and convergence rates.
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/MainImageToUseFoundationModel.png?raw=true)
+
+## The Evaluation framework
+One of the biggest challenges in evaluating FMs is disentangling the performance impact of various factors such as: model architectures, pre-training tasks, and downstream task training data. The effectiveness of a FM can be measured by the quality of its latent representations, and how the key features learnt through the process of pre-training can boost downstream task performance. 
+Hence, to provide a fair comparison between different FMs within our evaluation framework, we minimize the impact of confounding variables by providing: (1) consistent and repeatable training and evaluation datasets, and (2) a common downstream task head for all the pre-trained models.
+    
+- **Dataset creation**: To minimize the impact of variability in the downstream task datasets, a common hold out Test Set for each downstream task was created providing comparable results across all evaluated models. A data partitioning script is also provided that allows for the creation of smaller subsets (n-shot or percentage split) from the full **Phileo**, Downstream Task training dataset enabling us to evaluate the impact of training set size on model performance. The indexes of training samples used are automatically saved. Hence, different models can be trained on the identical sub-datasets.
+   
+- **One *head* to rule them all**: To minimize the impact of different decoder heads on the downstream task performance, we propose the use of a common decoder head. The latent representations of each of the FMs are fed to a similar decoder. Hence, the comparable performance of a model is a consequence of the effectiveness of the pre-training task and the representational strength of its latent space. For segmentation downstream tasks, we use a multi-convolution decoder based on the U-Net design. For some models, it is required to up-sample or down-sample the features to achieve the desired output image size. For classification downstream tasks, a linear decoder is used. For ViT models, the cls token is used as the input to the linear decoder.
+
+Our framework supports two training configurations: (1) *Fine-tuning*, which allows for updating of all downstream task model weights including the FM encoder, and (2) *Linear probing*, where only the decoder head weights are updated, freezing the FM encoder parameters. **Phileo**, also contains U-Net, Mixer, and ViT architectures. **Phileo**, supports pre-trained models such as Masked Auto-Encoder (MAE) ViT, and Pre-trained U-Nets, as well as the models Prithvi, SatMAE, and SeCo. In addition, the testbed should be flexible and easy to use. Hence, an Object Oriented Programming approach is used with an emphasis on modularity, allowing for the easy addition of other downstream tasks, architectures, and pre-trained models.  
+
+## The Downstream Dataset
+
+The PhilEO dataset is a 400 GB global dataset of S2 images
+and has labels for roads, buildings, and land cover, where
+these are the three downstream tasks. The data is sampled
+from geographically diverse regions around the globe includ-
+ing: Denmark, East Africa, Egypt, Guinea, Europe, Ghana,
+Israel, Japan, Nigeria, North America, Senegal, South Amer-
+ica, Tanzania, and Uganda. Each region has up to 200 tiles
+of varying sizes. Some locations have been revisited up to 3
+times. The data contain 11 bands at 10m resolution in the fol-
+lowing order: 0-SCL, 1-B02, 2-B03, 3-B04, 4-B08, 5-B05,
+6-B06, 7-B07, 8-B8A, 9-B11, and 10-B12 where SCL is the
+Scene Classification Layer. As shown in the figure, each S2 tile
+in PhilEO has a label for each of the downstream tasks:
+
+- **ROADS**: The labels are expressed as a number of
+squared meters of roads in a given pixel. The values
+are between 0 and 100, and for a resolution of 10m,
+this reflect the percentage of coverage.
+- **BUILDINGS**: The labels are expressed as squared me-
+ters of buildings. The values are between 0 and 100.
+For 10m resolution, this reflect the coverage (in %).
+- **LANDCOVER**: Land cover labels are taken from ESA
+World Cover3: 11 classes, e.g. tree cover and built-up
+
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/Label_examples_merged.PNG?raw=true)
+
+### PhilEO Dataset Resources
+The data preprocessing scripts can be found [here](https://github.com/ESA-PhiLab/phileo-dataset).
+
+The dataset can be found [here](https://huggingface.co/ESA-philab)
 
 ## Installation
 conda env create -f environment.yml
