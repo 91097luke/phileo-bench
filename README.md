@@ -1,5 +1,5 @@
-# phileo-bench
-This repository introducing the PhilEO Bench, a novel evaluation framework
+# PhilEO BENCH: EVALUATING GEO-SPATIAL FOUNDATION MODELS
+This repository introducing the [PhilEO Bench](https://arxiv.org/abs/2401.04464), a novel evaluation framework
 for EO Foundation Models.In an attempt to addresses the need to evaluate differ-
 ent Foundation Models on a fair and uniform benchmark The framework comprises of a
 testbed and a novel 400GB Sentinel-2 dataset containing la-
@@ -94,6 +94,10 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
                           [--regions {None,denmark-1,denmark-2,east-africa,egypt-1,eq-guinea,europe,ghana-1,isreal-1,isreal-2,japan,nigeria,north-america,senegal,south-america,tanzania-1,tanzania-2,tanzania-3,tanzania-4,tanzania-5,uganda-1}]
                           [--n_shot N_SHOT] [--split_ratio SPLIT_RATIO] [--augmentations][--pretrained_model_path][--freeze_pretrained]
 ```
+### Some of Our Experimental Results
+
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/test_mse_building.png?raw=true)
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/test_acc_lc.png?raw=true)
 
 ### Parameters
 ```bash
