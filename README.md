@@ -21,13 +21,10 @@ Our framework supports two training configurations: (1) *Fine-tuning*, which all
 The PhilEO dataset is a 400 GB global dataset of S2 images
 and has labels for roads, buildings, and land cover, where
 these are the three downstream tasks. The data is sampled
-from geographically diverse regions around the globe includ-
-ing: Denmark, East Africa, Egypt, Guinea, Europe, Ghana,
-Israel, Japan, Nigeria, North America, Senegal, South Amer-
-ica, Tanzania, and Uganda. Each region has up to 200 tiles
+from geographically diverse regions around the globe including: Denmark, East Africa, Egypt, Guinea, Europe, Ghana,
+Israel, Japan, Nigeria, North America, Senegal, South America, Tanzania, and Uganda. Each region has up to 200 tiles
 of varying sizes. Some locations have been revisited up to 3
-times. The data contain 11 bands at 10m resolution in the fol-
-lowing order: 0-SCL, 1-B02, 2-B03, 3-B04, 4-B08, 5-B05,
+times. The data contain 11 bands at 10m resolution in the following order: 0-SCL, 1-B02, 2-B03, 3-B04, 4-B08, 5-B05,
 6-B06, 7-B07, 8-B8A, 9-B11, and 10-B12 where SCL is the
 Scene Classification Layer. As shown in the figure, each S2 tile
 in PhilEO has a label for each of the downstream tasks:
