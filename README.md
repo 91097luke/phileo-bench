@@ -128,6 +128,9 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
   --data_parallel                                           If set True pytorch model will be wrapped in nn.data_parallel a trained on multiple gpus 
 ```
 
+### Model Weughts
+:bell:   **ALL models are available for non-commercial research purposes only.**
+
 ## If you use our code, please cite:
 
 Casper Fibaek, Luke Camilleri, Andreas Luyts, Nikolaos Dionelis, and Bertrand Le Saux, “PhilEO Bench: Evaluating Geo-Spatial Foundation Models,” arXiv:2401.04464, 2024.
