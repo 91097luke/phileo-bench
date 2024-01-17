@@ -26,7 +26,10 @@ class Resnet50(nn.Module):
         self.decoder_head = CoreDecoder(embedding_dim=2048,
                                         output_dim=output_dim,
                                         depths=decoder_depths, 
-                                        dims= decoder_dims)
+                                        dims= decoder_dims,
+                                        norm=decoder_norm,
+                                        activation=decoder_activation,
+                                        padding=decoder_padding,)
 
         self.decoder_upsample_block = nn.Sequential(DecoderBlock(depth=1, in_channels=2048,
                                                                  out_channels=2048,                 
@@ -42,26 +45,6 @@ class Resnet50(nn.Module):
         x = self.encoder(x)
         x = self.decoder_upsample_block(x)
         x = self.decoder_head(x)
-        return x
-
-
-class Seco_Classifier(nn.Module):
-    def __init__(self, ckpt_path, output_dim=1):
-        super(Seco_Classifier, self).__init__()
-        model = moco2_module.MocoV2.load_from_checkpoint(ckpt_path, map_location='cpu')
-        self.encoder = deepcopy(model.encoder_q)
-        self.head = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(1,1)),
-                                  nn.Flatten(start_dim=1, end_dim=-1),
-                                  nn.Linear(2048, 2048),
-                                  nn.ReLU(),
-                                  nn.Linear(2048, output_dim))
-
-    def forward(self, x):
-        # order S2 bands: 0-B02, 1-B03, 2-B04, 3-B08, 4-B05, 5-B06, 6-B07, 7-B8A, 8-B11, 9-B12
-        x = x[:, (2, 1, 0), :, :] # select RGB bands
-        x = self.encoder(x)
-        x = self.head(x)
-
         return x
 
 class Resnet50_Classifier(nn.Module):
@@ -95,15 +78,8 @@ def resnet(imagenet_weights, output_dim=1, freeze_body=True, classifier=False, *
         model = Resnet50(output_dim=output_dim, imagenet_weights=imagenet_weights, **kwargs)
 
     if freeze_body:
-        if classifier:
-            for name, param in model.named_parameters():
-                if not not name.startswith('classification'):
-                    param.requires_grad = False
-
-        else:
-            for name, param in model.named_parameters():
-                if not name.startswith('decoder'):
-                    param.requires_grad = False
+        for _, param in model.encoder.named_parameters():
+            param.requires_grad = False
 
     return model
 

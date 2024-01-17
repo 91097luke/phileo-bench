@@ -122,11 +122,8 @@ class PatchEmbed(nn.Module):
             x = x.flatten(2).transpose(1, 2)  # B,C,T,H,W -> B,C,L -> B,L,C
         x = self.norm(x)
         return x
-
-
-class Prithvi(nn.Module):
-    """ Masked Autoencoder with VisionTransformer backbone
-    """
+    
+class PrithviEncoder(nn.Module):
     def __init__(self, img_size=224, patch_size=16,
                  num_frames=3, tubelet_size=1,
                  in_chans=3, embed_dim=1024, depth=24, num_heads=16, output_dim=1,
@@ -134,10 +131,11 @@ class Prithvi(nn.Module):
                  decoder_norm='batch', decoder_padding='same',
                  decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280]
                  ):
+        
         super().__init__()
 
         # --------------------------------------------------------------------------
-        # MAE encoder specifics
+        # encoder specifics
         self.patch_embed = PatchEmbed(img_size, patch_size,num_frames, tubelet_size, in_chans, embed_dim)
         num_patches = self.patch_embed.num_patches
 
@@ -148,23 +146,6 @@ class Prithvi(nn.Module):
             Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer)
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
-        # --------------------------------------------------------------------------
-
-        # --------------------------------------------------------------------------
-        # CNN Decoder Blocks:
-        self.depths = decoder_depths
-        self.dims = decoder_dims
-        self.output_dim = output_dim
-
-        self.decoder_head = CoreDecoder(embedding_dim=embed_dim,
-                                        output_dim=output_dim,
-                                        depths=decoder_depths, 
-                                        dims= decoder_dims)
-        
-        self.decoder_downsample_block = nn.Identity()
-
-        self.initialize_weights()
-        self.norm_pix_loss = norm_pix_loss
 
         self.initialize_weights()
 
@@ -195,7 +176,7 @@ class Prithvi(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward_encoder(self, x):
+    def forward(self, x):
         # embed patches
         x = self.patch_embed(x)
 
@@ -212,10 +193,49 @@ class Prithvi(nn.Module):
         for blk in self.blocks:
             x = blk(x)
         x = self.norm(x)
-        # remove cls token
-        x = x[:, 1:, :]
-
+        # # remove cls token
+        # x = x[:, 1:, :]
         return x
+
+
+class Prithvi(nn.Module):
+    """ Masked Autoencoder with VisionTransformer backbone
+    """
+    def __init__(self, img_size=224, patch_size=16,
+                 num_frames=3, tubelet_size=1,
+                 in_chans=3, embed_dim=1024, depth=24, num_heads=16, output_dim=1,
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
+                 decoder_norm='batch', decoder_padding='same',
+                 decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280]
+                 ):
+        super().__init__()
+
+        # --------------------------------------------------------------------------
+        # encoder specifics
+        self.vit_encoder = PrithviEncoder(img_size=img_size, patch_size=patch_size,
+                                          num_frames=num_frames, tubelet_size=tubelet_size,
+                                          in_chans=in_chans, embed_dim=embed_dim, depth=depth, 
+                                          num_heads=num_heads, output_dim=output_dim,
+                                          mlp_ratio=mlp_ratio, norm_layer=norm_layer,
+                                          norm_pix_loss=norm_pix_loss,)
+
+        # --------------------------------------------------------------------------
+
+        # --------------------------------------------------------------------------
+        # CNN Decoder Blocks:
+        self.depths = decoder_depths
+        self.dims = decoder_dims
+        self.output_dim = output_dim
+
+        self.decoder_head = CoreDecoder(embedding_dim=embed_dim,
+                                        output_dim=output_dim,
+                                        depths=decoder_depths, 
+                                        dims= decoder_dims,
+                                        activation=decoder_activation,
+                                        padding=decoder_padding, 
+                                        norm=decoder_norm)
+        
+        self.decoder_downsample_block = nn.Identity()
 
 
     def reshape(self, x):
@@ -228,7 +248,11 @@ class Prithvi(nn.Module):
 
     def forward(self, x):
         x = x[:, :, None, :, :]
-        x = self.forward_encoder(x)
+        x = self.vit_encoder(x)
+
+        # remove cls token
+        x = x[:, 1:, :]
+        # reshape into 2d features
         x = self.reshape(x)
         x = self.decoder_downsample_block(x)
         x = self.decoder_head(x)
@@ -245,19 +269,15 @@ class PrithviClassifier(nn.Module):
         super().__init__()
 
         # --------------------------------------------------------------------------
-        # MAE encoder specifics
-        self.patch_embed = PatchEmbed(img_size, patch_size, num_frames, tubelet_size, in_chans, embed_dim)
-        num_patches = self.patch_embed.num_patches
+        # encoder specifics
+        self.vit_encoder = PrithviEncoder(img_size=img_size, patch_size=patch_size,
+                                          num_frames=num_frames, tubelet_size=tubelet_size,
+                                          in_chans=in_chans, embed_dim=embed_dim, depth=depth, 
+                                          num_heads=num_heads, output_dim=output_dim,
+                                          mlp_ratio=mlp_ratio, norm_layer=norm_layer,
+                                          norm_pix_loss=norm_pix_loss,)
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
-
-        self.blocks = nn.ModuleList([
-            Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer)
-            for i in range(depth)])
-        self.norm = norm_layer(embed_dim)
         # --------------------------------------------------------------------------
-
         # --------------------------------------------------------------------------
         # CNN Decoder Blocks:
 
@@ -267,64 +287,11 @@ class PrithviClassifier(nn.Module):
                                                  nn.Linear(in_features=int(embed_dim/2), out_features=output_dim)
                                                  )
 
-        self.initialize_weights()
-        self.norm_pix_loss = norm_pix_loss
-
-        self.initialize_weights()
-
-    def initialize_weights(self):
-        # initialization
-        # initialize (and freeze) pos_embed by sin-cos embedding
-        pos_embed = get_3d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size, cls_token=True)
-        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
-
-
-        # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        w = self.patch_embed.proj.weight.data
-        torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
-
-        # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
-        torch.nn.init.normal_(self.cls_token, std=.02)
-
-        # initialize nn.Linear and nn.LayerNorm
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            # we use xavier_uniform following official JAX ViT:
-            torch.nn.init.xavier_uniform_(m.weight)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-
-    def forward_encoder(self, x):
-        # embed patches
-        x = self.patch_embed(x)
-
-        # add pos embed w/o cls token
-        x = x + self.pos_embed[:, 1:, :]
-
-
-
-        # append cls token
-        cls_token = self.cls_token + self.pos_embed[:, :1, :]
-        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
-
-        # apply Transformer blocks
-        for blk in self.blocks:
-            x = blk(x)
-        x = self.norm(x)
-        # return cls token
-        x = x[:, 0, :]
-
-        return x
-
     def forward(self, x):
         x = x[:, :, None, :, :]
-        x = self.forward_encoder(x)
+        x = self.vit_encoder(x)
+        # select cls token
+        x = x[:, 0, :]
         x = self.classification_head(x)
         return x
 
@@ -346,19 +313,12 @@ def prithvi(checkpoint, output_dim=1, decoder_norm='batch', decoder_padding='sam
         del checkpoint['decoder_pos_embed']
 
     # load pre-trained model
-    msg = model.load_state_dict(checkpoint, strict=False)
+    msg = model.vit_encoder.load_state_dict(checkpoint, strict=False)
     print(msg)
 
     if freeze_body:
-        if classifier:
-            for name, param in model.named_parameters():
-                if not not name.startswith('classification'):
-                    param.requires_grad = False
-
-        else:
-            for name, param in model.named_parameters():
-                if not name.startswith('decoder'):
-                    param.requires_grad = False
+        for _, param in model.vit_encoder.named_parameters():
+            param.requires_grad = False
 
     model.float()
     return model
