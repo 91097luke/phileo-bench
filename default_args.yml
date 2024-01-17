@@ -1,8 +1,8 @@
-experiment_name: jupiter_notebook
+experiment_name: p_split
 model_name: core_unet_nano
 lr: 0.0001
 lr_scheduler: reduce_on_plateau
-batch_size: 64
+batch_size: 30
 epochs: 500
 vis_val: True
 downstream_task: lc
@@ -10,7 +10,7 @@ input_channels: 10
 input_size: 128
 output_channels: 11
 regions:
-n_shot: 50
+n_shot: null
 split_ratio: null
 augmentations: True
 early_stop: 15

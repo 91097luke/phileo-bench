@@ -58,7 +58,7 @@ MODEL_LIST = CNN_LIST + MIXER_LIST + VIT_LIST + CNN_PRETRAINED_LIST + VIT_CNN_LI
 
 
 def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
-                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val):
+                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val, multistep_milestone, multistep_gamma):
 
     if model_name in (CNN_LIST + MIXER_LIST + VIT_CNN_LIST + CNN_PRETRAINED_LIST + VIT_CNN_PRETRAINED_LIST):
         if downstream_task == 'roads' or downstream_task == 'building':
@@ -66,54 +66,63 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                train_loader=dl_train,
                                                val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                               multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma)
         elif downstream_task == 'lc':
             trainer = training_loops.TrainLandCover(epochs=epochs, lr=lr, model=model, device=device,
                                                     lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                     train_loader=dl_train,
                                                     val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                    multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma)
         elif downstream_task == 'building_classification':
             trainer = training_loops.TrainClassificationBuildings(epochs=epochs, lr=lr, model=model, device=device,
                                                                   lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                                   train_loader=dl_train,
                                                                   val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                                  out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                                  out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                                  multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma
+                                                                  )
 
         elif downstream_task == 'lc_classification':
             trainer = training_loops.TrainClassificationLC(epochs=epochs, lr=lr, model=model, device=device,
                                                            lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                            train_loader=dl_train,
                                                            val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                           multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma)
 
         elif downstream_task == 'roads_classification':
             trainer = training_loops.TrainClassificationRoads(epochs=epochs, lr=lr, model=model, device=device,
                                                            lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                            train_loader=dl_train,
                                                            val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                           multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma)
 
     elif model_name in (VIT_LIST):
         if downstream_task == 'roads' or downstream_task == 'building':
             trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                              multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma)
 
         elif downstream_task == 'lc':
             trainer = training_loops.TrainViTLandCover(epochs=epochs, lr=lr, model=model, device=device,
                                                        lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                        train_loader=dl_train,
                                                        val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                       multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma)
 
     if model_name == 'core_vae_nano':
         trainer = training_loops.TrainVAE(epochs=epochs, lr=lr, model=model, device=device,
                                           lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                           train_loader=dl_train,
                                           val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                          out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                          out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                          multistep_milestone=multistep_milestone, multistep_gamma=multistep_gamma)
 
     return trainer
 
@@ -348,17 +357,24 @@ def get_args():
     parser.add_argument('--data_path_128_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/')
     parser.add_argument('--data_path_224_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/')
     parser.add_argument('--data_path_224_30m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/')
+    parser.add_argument('--C', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/experiments')
     parser.add_argument('--data_parallel', type=bool, default=False)
+    parser.add_argument('--device_ids', type=list, default=[0, 1, 2, 3])
+    parser.add_argument('--multistep_milestone', type=list, default=[1, 2, 3, 4, 5])
+    parser.add_argument('--multistep_gamma', type=list, default=(10))
 
 
 
-    return parser,parser_yaml
+    return parser, parser_yaml
 
 
 def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
          early_stop:int=25, epochs:int=250, input_channels:int=10, input_size:int=128, lr:float=0.001, lr_scheduler:str=None,
-         n_shot:int=None, num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val=True, warmup=False, pretrained_model_path=None, freeze_pretrained=None,
-         data_path_128_10m=None, data_path_224_10m=None, data_path_224_30m=None, data_parallel:bool=False):
+         n_shot:int=None, num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val:bool=True, warmup:bool=False, pretrained_model_path:str=None, freeze_pretrained:bool=None,
+         data_path_128_10m:str=None, data_path_224_10m:str=None, data_path_224_30m:str=None, output_path:str=None, data_parallel:bool=False, device_ids:list=None, multistep_milestone:list=None, multistep_gamma=None):
+    
+    # TODO: add doc string
+    # TODO: split model and dataloader devices
 
     init_lr = lr
     # device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -368,7 +384,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     assert not (n_shot == None) or not (split_ratio == None), 'Please define data partition protocol!'
     assert isinstance(n_shot, int) ^ isinstance(split_ratio, float), 'n_shot cannot be used with split_ratio!'
     if (downstream_task == 'lc') or (downstream_task == 'lc_classification'):
-        assert not (output_channels == 1), 'land cover tasks should have 11 output channels'
+        assert (output_channels == 11), 'land cover tasks should have 11 output channels'
 
     if (downstream_task == 'roads') or (downstream_task == 'building'):
         assert output_channels == 1, 'road and building density estimation tasks should have a single output channel'
@@ -397,12 +413,12 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         model = get_models(model_name, input_channels, output_channels, input_size)
         NAME = model.__class__.__name__
 
-    OUTPUT_FOLDER = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
+    OUTPUT_FOLDER = f'{output_path}/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
     if lr_scheduler is not None:
-        OUTPUT_FOLDER = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
+        OUTPUT_FOLDER = f'{output_path}/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
 
     if warmup:
-        lr = lr / 100000  # for warmup start
+        lr = 0.1e-6  # for warmup start
 
     dataset_folder = data_path_128_10m
     dataset_name = '128_10m'
@@ -453,18 +469,18 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
                                                     device=device
                                                     )
     
-
+    print(f'Training on: {model_name}')
+    print('--'*10)
     if data_parallel:
-        if torch.cuda.device_count() > 1 and model_name.split('_')[-1] != 'wSkip' :
+        if torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-            model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+            model = nn.DataParallel(model, device_ids=device_ids)
  
     model.to(device)
 
     if model_name == 'SatMAE' or model_name =='SatMAE_classifier':
-        print()
-        # import pdb; pdb.set_trace()
+
         model_summary = summary(model,
                                 input_size=(batch_size, input_channels, 96, 96), )
 
@@ -482,7 +498,7 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
 
     trainer = get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
-                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val)
+                          dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val, multistep_milestone, multistep_gamma)
 
     trainer.train()
     trainer.test()
