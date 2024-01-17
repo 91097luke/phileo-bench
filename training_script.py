@@ -417,9 +417,6 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
     if lr_scheduler is not None:
         OUTPUT_FOLDER = f'{output_path}/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
 
-    if warmup:
-        lr = 0.1e-6  # for warmup start
-
     dataset_folder = data_path_128_10m
     dataset_name = '128_10m'
     if model_name in MODELS_224_r30:
