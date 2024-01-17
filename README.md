@@ -4,7 +4,7 @@
 1. [Introduction](#introduction)
 2. [Evaluation framework](#framework)
 3. [Downstream Dataset](#data)
-4. [Get Started](#getstarted)
+4. [Getting Started!](#getstarted)
 5. [Model Weights](#model_weights)
 6. [Acknowledgements](#acknowledgements)
 
@@ -56,7 +56,7 @@ The data preprocessing scripts can be found [here](https://github.com/ESA-PhiLab
 
 The dataset can be found [here](https://huggingface.co/ESA-philab)
 
-## Get Started <a name="getstarted"></a>
+## Getting Started! <a name="getstarted"></a>
 
 ### Enviorment 
 conda env create -f environment.yml
