@@ -1,12 +1,22 @@
 # PhilEO BENCH: EVALUATING GEO-SPATIAL FOUNDATION MODELS
+
+# Table Of Contents
+1. [Introduction](#introduction)
+2. [Evaluation framework](#framework)
+3. [Downstream Dataset](#data)
+4. [Getting Started!](#getstarted)
+5. [Model Weights](#model_weights)
+6. [Acknowledgements](#acknowledgements)
+
+## Introduction <a name="introduction"></a>
 This repository introduces the [PhilEO Bench](https://arxiv.org/abs/2401.04464), a novel evaluation framework
 for EO Foundation Models. In an attempt to address the need to evaluate different Foundation Models on a fair and uniform benchmark, the framework comprises of a
 testbed and a novel 400GB Sentinel-2 dataset containing labels for the three downstream tasks of building density estimation,
 road segmentation, and land cover classification. We present
 experiments using our framework evaluating several different Foundation Models, including Prithvi and SatMAE, at multiple n-shots and convergence rates.
-![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/MainImageToUseFoundationModel.png?raw=true)
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/readme_images/MainImageToUseFoundationModel.png?raw=true)
 
-## The Evaluation framework
+## Evaluation framework <a name="framework"></a>
 One of the biggest challenges in evaluating FMs is disentangling the performance impact of various factors such as: model architectures, pre-training tasks, and downstream task training data. The effectiveness of a FM can be measured by the quality of its latent representations, and how the key features learnt through the process of pre-training can boost downstream task performance. 
 Hence, to provide a fair comparison between different FMs within our evaluation framework, we minimize the impact of confounding variables by providing: (1) consistent and repeatable training and evaluation datasets, and (2) a common downstream task head for all the pre-trained models.
     
@@ -16,7 +26,7 @@ Hence, to provide a fair comparison between different FMs within our evaluation 
 
 Our framework supports two training configurations: (1) *Fine-tuning*, which allows for updating of all downstream task model weights including the FM encoder, and (2) *Linear probing*, where only the decoder head weights are updated, freezing the FM encoder parameters. **Phileo**, also contains U-Net, Mixer, and ViT architectures. **Phileo**, supports pre-trained models such as Masked Auto-Encoder (MAE) ViT, and Pre-trained U-Nets, as well as the models Prithvi, SatMAE, and SeCo. In addition, the testbed should be flexible and easy to use. Hence, an Object Oriented Programming approach is used with an emphasis on modularity, allowing for the easy addition of other downstream tasks, architectures, and pre-trained models.  
 
-## The Downstream Dataset
+## Downstream Dataset <a name="data"></a>
 
 The PhilEO dataset is a 400 GB global dataset of S2 images
 and has labels for roads, buildings, and land cover, where
@@ -46,10 +56,12 @@ The data preprocessing scripts can be found [here](https://github.com/ESA-PhiLab
 
 The dataset can be found [here](https://huggingface.co/ESA-philab)
 
-## Installation
+## Getting Started! <a name="getstarted"></a>
+
+### Enviorment 
 conda env create -f environment.yml
 
-## Usage
+### Usage
 
 ```python
 python training_script.py [--experiment_name EXPERIMENT_NAME] --model_name
@@ -63,7 +75,7 @@ or python training_script.py --read_yaml=default_args.yml
 ```
 
 
-## Experiment Script Usage
+### Experiment Script Usage
 Trains a series of models (for a specific downstream task) on variouse training dataset sizes and plots the test loss vs number of training samples. 
 ```python
 python p_split_experiment.py [--experiment_name EXPERIMENT_NAME] --model_name
@@ -120,8 +132,17 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
   --data_path_224_30m                                       Path to 30m resolution 224x224 patches
   --data_parallel                                           If set True pytorch model will be wrapped in nn.data_parallel a trained on multiple gpus 
 ```
+### Main files
 
-### Model Weights
+The main file in this GitHub repository is "training_script.py". - The Jupyter Notebook is "demo.ipynb".
+
+### Project webpage
+
+The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
+
+The paper is in [arXiv-PhilEO](http://arxiv.org/pdf/2401.04464.pdf).
+
+## Model Weights <a name="model_weights"></a>
 :bell:   **ALL models are available for non-commercial research purposes only.**
 
 | Model        | Architecture | Link          |
@@ -131,20 +152,13 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 | SeCo         | Resnet-50                   |[SeCo-1M](https://github.com/ServiceNow/seasonal-contrast?tab=readme-ov-file)|
 | Phileo-ViT   | Masked-AutoEncoder ViT      |[MaskedAutoencoderViT](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/MaskedAutoencoderViT_ckpt.pt)|
 | Phileo-ViT-Grouped-Channels   | Masked-AutoEncoder ViT      |[MaskedAutoencoderGroupChannelViT](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/MaskedAutoencoderGroupChannelViT_ckpt.pt)|
-| Phileo-GeoAware-MvMF | UNET-Encoder                   |[GeoAware-MvMF](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoder_last_8.pt)|
-| Phileo-GeoAware-PsudoContrastive         | UNET-Encoder                   |[GeoAware-PsudoContr](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_best.pt)|
-| Phileo-GeoAware-MutliheadPred         | UNET-Encoder                  |[GeoAware-MH](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_geo_pred_best.pt)|
+| [Phileo-GeoAware-MvMF](https://github.com/LuytsA/Phileo-geographical-expert) | UNET-Encoder                   |[GeoAware-MvMF](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoder_last_8.pt)|
+| Phileo-GeoAware-PseudoContrastive         | UNET-Encoder                   |[GeoAware-PseudoContr](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_best.pt)|
+| Phileo-GeoAware-MultiheadPred         | UNET-Encoder                  |[GeoAware-MH](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_geo_pred_best.pt)|
 
-### Main files
 
-The main file in this GitHub repository is "training_script.py". - The Jupyter Notebook is "demo.ipynb".
-
-### Project webpage
-
-The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
-
-### Acknowledgements
-Some code from this repository is inspired from: 
+## Acknowledgements <a name="acknowledgements"></a>
+Some code from this repository is inspired by: 
 - [SatMAE repository](https://github.com/sustainlab-group/SatMAE)
 - [Prithvi repository](https://github.com/NASA-IMPACT/hls-foundation-os)
 - [Sesonal-Contrast repositry](https://github.com/ServiceNow/seasonal-contrast?tab=readme-ov-file).
