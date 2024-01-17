@@ -39,7 +39,7 @@ For 10m resolution, this reflect the coverage (in %).
 - **LANDCOVER**: Land cover labels are taken from ESA
 World Cover3: 11 classes, e.g. tree cover and built-up
 
-![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/Label_examples_merged.PNG?raw=true)
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/readme_images/Label_examples_merged.PNG?raw=true)
 
 ### PhilEO Dataset Resources
 The data preprocessing scripts can be found [here](https://github.com/ESA-PhiLab/phileo-dataset).
@@ -89,8 +89,8 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 ```
 ### Some of Our Experimental Results
 
-![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/test_mse_building.png?raw=true)
-![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/test_acc_lc.png?raw=true)
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/readme_images/test_mse_building.png?raw=true)
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/readme_images/test_acc_lc.png?raw=true)
 
 ### Parameters
 ```bash

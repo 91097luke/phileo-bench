@@ -1,15 +1,7 @@
-import os.path
-
-import numpy
-from datetime import date
 import torch
 import gc
-import glob
-
 
 import training_script
-import experiment_plots
-
 from utils.training_utils import read_yaml
 
 torch.cuda.set_device(0)
@@ -37,8 +29,8 @@ for downstream_task in ['building', 'lc']: #
     experiment_name = args['experiment_name']
     folder = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/'
 
-    for split_ratio in [1.0, ]:  
-        model_list = [ 'vit_cnn', ] 
+    for split_ratio in [0.1, 0.2, 0.5, 0.8, 1.0]:  
+        model_list = [ ] 
 
         # 'GeoAware_core_nano', 'vit_cnn_gc_wSkip' 'GeoAware_contrastive_core_nano', 'vit_cnn_base', 'GeoAware_mh_pred_core_nano', 'core_unet_nano', 'SatMAE', 'seasonal_contrast', 'resnet_imagenet', 'prithvi', 'vit_cnn', 'vit_cnn_gc'
         
