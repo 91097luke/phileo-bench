@@ -157,7 +157,7 @@ The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
 
 
 ## Acknowledgements <a name="acknowledgements"></a>
-Some code from this repository is inspired from: 
+Some code from this repository is inspired by: 
 - [SatMAE repository](https://github.com/sustainlab-group/SatMAE)
 - [Prithvi repository](https://github.com/NASA-IMPACT/hls-foundation-os)
 - [Sesonal-Contrast repositry](https://github.com/ServiceNow/seasonal-contrast?tab=readme-ov-file).
