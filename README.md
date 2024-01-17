@@ -4,7 +4,7 @@ for EO Foundation Models. In an attempt to address the need to evaluate differen
 testbed and a novel 400GB Sentinel-2 dataset containing labels for the three downstream tasks of building density estimation,
 road segmentation, and land cover classification. We present
 experiments using our framework evaluating several different Foundation Models, including Prithvi and SatMAE, at multiple n-shots and convergence rates.
-![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/MainImageToUseFoundationModel.png?raw=true)
+![alt text](https://github.com/ESA-PhiLab/phileo-bench/blob/main/readme_images/MainImageToUseFoundationModel.png?raw=true)
 
 ## The Evaluation framework
 One of the biggest challenges in evaluating FMs is disentangling the performance impact of various factors such as: model architectures, pre-training tasks, and downstream task training data. The effectiveness of a FM can be measured by the quality of its latent representations, and how the key features learnt through the process of pre-training can boost downstream task performance. 
