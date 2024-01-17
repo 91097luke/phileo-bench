@@ -131,7 +131,7 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 | SeCo         | Resnet-50                   |[SeCo-1M](https://github.com/ServiceNow/seasonal-contrast?tab=readme-ov-file)|
 | Phileo-ViT   | Masked-AutoEncoder ViT      |[MaskedAutoencoderViT](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/MaskedAutoencoderViT_ckpt.pt)|
 | Phileo-ViT-Grouped-Channels   | Masked-AutoEncoder ViT      |[MaskedAutoencoderGroupChannelViT](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/MaskedAutoencoderGroupChannelViT_ckpt.pt)|
-| Phileo-GeoAware-MvMF | UNET-Encoder                   |[GeoAware-MvMF](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoder_last_8.pt)|
+| [Phileo-GeoAware-MvMF](https://github.com/LuytsA/Phileo-geographical-expert) | UNET-Encoder                   |[GeoAware-MvMF](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoder_last_8.pt)|
 | Phileo-GeoAware-PsudoContrastive         | UNET-Encoder                   |[GeoAware-PsudoContr](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_best.pt)|
 | Phileo-GeoAware-MutliheadPred         | UNET-Encoder                  |[GeoAware-MH](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_geo_pred_best.pt)|
 
