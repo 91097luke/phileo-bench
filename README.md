@@ -153,7 +153,7 @@ The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
 | Phileo-ViT-Grouped-Channels   | Masked-AutoEncoder ViT      |[MaskedAutoencoderGroupChannelViT](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/MaskedAutoencoderGroupChannelViT_ckpt.pt)|
 | [Phileo-GeoAware-MvMF](https://github.com/LuytsA/Phileo-geographical-expert) | UNET-Encoder                   |[GeoAware-MvMF](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoder_last_8.pt)|
 | Phileo-GeoAware-PsudoContrastive         | UNET-Encoder                   |[GeoAware-PsudoContr](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_best.pt)|
-| Phileo-GeoAware-MutliheadPred         | UNET-Encoder                  |[GeoAware-MH](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_geo_pred_best.pt)|
+| Phileo-GeoAware-MultiheadPred         | UNET-Encoder                  |[GeoAware-MH](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_geo_pred_best.pt)|
 
 
 ## Acknowledgements <a name="acknowledgements"></a>
