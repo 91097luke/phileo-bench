@@ -132,6 +132,14 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
   --data_path_224_30m                                       Path to 30m resolution 224x224 patches
   --data_parallel                                           If set True pytorch model will be wrapped in nn.data_parallel a trained on multiple gpus 
 ```
+### Main files
+
+The main file in this GitHub repository is "training_script.py". - The Jupyter Notebook is "demo.ipynb".
+
+### Project webpage
+
+The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
+
 
 ## Model Weights <a name="model_weights"></a>
 :bell:   **ALL models are available for non-commercial research purposes only.**
@@ -147,13 +155,6 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 | Phileo-GeoAware-PsudoContrastive         | UNET-Encoder                   |[GeoAware-PsudoContr](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_best.pt)|
 | Phileo-GeoAware-MutliheadPred         | UNET-Encoder                  |[GeoAware-MH](https://huggingface.co/ESA-philab/PhilEO-Bench/blob/main/pretrained_philab_models/CoreEncoderMultiHead_geo_pred_best.pt)|
 
-### Main files
-
-The main file in this GitHub repository is "training_script.py". - The Jupyter Notebook is "demo.ipynb".
-
-### Project webpage
-
-The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
 
 ## Acknowledgements <a name="acknowledgements"></a>
 Some code from this repository is inspired from: 
