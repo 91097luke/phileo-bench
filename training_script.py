@@ -376,10 +376,11 @@ def main(experiment_name:str, downstream_task:str, model_name:str, augmentations
          early_stop:int=25, epochs:int=250, input_channels:int=10, output_channels:int=1, input_size:int=128, lr:float=0.001, lr_scheduler:str=None,
          n_shot:int=None, split_ratio:float=0.1, regions:list=None,  vis_val:bool=True, warmup:bool=False , warmp_steps:int=5, warmup_gamma:int=10, pretrained_model_path:str=None, freeze_pretrained:bool=None,
          data_path_128_10m:str=None, data_path_224_10m:str=None, data_path_224_30m:str=None, output_path:str=None, data_parallel:bool=False, device_ids:list=None):
-    f""" main script for PhilEO Bench. Used to run model training experiments with randomly initialized and pre-trained models on a number of downstream tasks. 
+    """ main script for PhilEO Bench. Used to run model training experiments with randomly initialized and pre-trained models on a number of downstream tasks. 
         The script handles dataset creation (based on data protocol options selected), data preprocessing (based on downstream task & model type) & model, training, validation and testing. 
 
-    Args:
+    Parameters
+    ----------
         experiment_name (str): Experiment name
         downstream_task (str): Select downstream task to test, validate and test on. Options: {DOWNSTREAM_LIST}
         model_name (str): Select model. Options:{MODEL_LIST}
