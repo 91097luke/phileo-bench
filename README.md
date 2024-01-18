@@ -163,7 +163,9 @@ The main file in this GitHub repository is "training_script.py". - The Jupyter N
 
 The main project webpage is [PhilEO-Bench](http://phileo-bench.github.io/).
 
-The paper can be found in [PhilEO-Paper](http://arxiv.org/pdf/2401.04464.pdf).
+
+The paper is in [arXiv-PhilEO](http://arxiv.org/pdf/2401.04464.pdf).
+
 
 ## Model Weights <a name="model_weights"></a>
 :bell:   **ALL models are available for non-commercial research purposes only.**
