@@ -55,10 +55,11 @@ MODELS_224 = ['seasonal_contrast', 'resnet_imagenet', 'resnet', 'seasonal_contra
 MODELS_224_r30 = ['prithvi', 'prithvi_classifier']
 
 MODEL_LIST = CNN_LIST + MIXER_LIST + VIT_LIST + CNN_PRETRAINED_LIST + VIT_CNN_LIST + VIT_CNN_PRETRAINED_LIST
+DOWNSTREAM_LIST = ['lc', 'building', 'roads', 'lc_classification', 'building_classification', 'roads_classification']
 
 
 def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
-                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val):
+                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val, warmup_steps, warmup_gamma):
 
     if model_name in (CNN_LIST + MIXER_LIST + VIT_CNN_LIST + CNN_PRETRAINED_LIST + VIT_CNN_PRETRAINED_LIST):
         if downstream_task == 'roads' or downstream_task == 'building':
@@ -66,54 +67,63 @@ def get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_sched
                                                lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                train_loader=dl_train,
                                                val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                               out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                               warmup_steps=warmup_steps, warmup_gamma=warmup_gamma)
         elif downstream_task == 'lc':
             trainer = training_loops.TrainLandCover(epochs=epochs, lr=lr, model=model, device=device,
                                                     lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                     train_loader=dl_train,
                                                     val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                    out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                    warmup_steps=warmup_steps, warmup_gamma=warmup_gamma)
         elif downstream_task == 'building_classification':
             trainer = training_loops.TrainClassificationBuildings(epochs=epochs, lr=lr, model=model, device=device,
                                                                   lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                                   train_loader=dl_train,
                                                                   val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                                  out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                                  out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                                  warmup_steps=warmup_steps, warmup_gamma=warmup_gamma
+                                                                  )
 
         elif downstream_task == 'lc_classification':
             trainer = training_loops.TrainClassificationLC(epochs=epochs, lr=lr, model=model, device=device,
                                                            lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                            train_loader=dl_train,
                                                            val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                           warmup_steps=warmup_steps, warmup_gamma=warmup_gamma)
 
         elif downstream_task == 'roads_classification':
             trainer = training_loops.TrainClassificationRoads(epochs=epochs, lr=lr, model=model, device=device,
                                                            lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                            train_loader=dl_train,
                                                            val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                           out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                           warmup_steps=warmup_steps, warmup_gamma=warmup_gamma)
 
     elif model_name in (VIT_LIST):
         if downstream_task == 'roads' or downstream_task == 'building':
             trainer = training_loops.TrainViT(epochs=epochs, lr=lr, model=model, device=device,
                                               lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop, train_loader=dl_train,
                                               val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                              out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                              warmup_steps=warmup_steps, warmup_gamma=warmup_gamma)
 
         elif downstream_task == 'lc':
             trainer = training_loops.TrainViTLandCover(epochs=epochs, lr=lr, model=model, device=device,
                                                        lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                                        train_loader=dl_train,
                                                        val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                                       out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                                       warmup_steps=warmup_steps, warmup_gamma=warmup_gamma)
 
     if model_name == 'core_vae_nano':
         trainer = training_loops.TrainVAE(epochs=epochs, lr=lr, model=model, device=device,
                                           lr_scheduler=lr_scheduler, warmup=warmup, early_stop=early_stop,
                                           train_loader=dl_train,
                                           val_loader=dl_val, test_loader=dl_test, name=NAME,
-                                          out_folder=OUTPUT_FOLDER, visualise_validation=vis_val)
+                                          out_folder=OUTPUT_FOLDER, visualise_validation=vis_val,
+                                          warmup_steps=warmup_steps, warmup_gamma=warmup_gamma)
 
     return trainer
 
@@ -324,11 +334,13 @@ def get_args():
     parser.add_argument('--lr_scheduler', type=str, default=None,
                         choices=[None, 'reduce_on_plateau', 'cosine_annealing'], help='select learning rate scheduler')
     parser.add_argument('--warmup', action="store_true", help='Enables linear 5 epoch warmup scheduler')
-    parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+    parser.add_argument('--model_device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+                        help='select training device')
+    parser.add_argument('--generator_device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                         help='select training device')
     parser.add_argument('--num_workers', type=int, default=0, help='set number of workers')
     parser.add_argument('--vis_val', action="store_true", help='enable saving of intermediate visualization plots')
-    parser.add_argument('--downstream_task', type=str, choices=['roads', 'building', 'lc'], required=True,
+    parser.add_argument('--downstream_task', type=str, choices=DOWNSTREAM_LIST, required=True,
                         help='select downstream task')
     parser.add_argument('--input_channels', type=int, required=False, default=10, help='Define Number of input channels')
     parser.add_argument('--input_size', type=int, required=True, default=128, help='Define input size')
@@ -348,27 +360,70 @@ def get_args():
     parser.add_argument('--data_path_128_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np/')
     parser.add_argument('--data_path_224_10m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_224/')
     parser.add_argument('--data_path_224_30m', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/downstream/downstream_dataset_patches_np_HLS/')
+    parser.add_argument('--C', type=str, default='/home/phimultigpu/phileo_NFS/phileo_data/experiments')
     parser.add_argument('--data_parallel', type=bool, default=False)
+    parser.add_argument('--device_ids', type=list, default=[0, 1, 2, 3])
+    parser.add_argument('--warmp_steps', type=int, default=5)
+    parser.add_argument('--warmup_gamma', type=int, default=10)
 
 
 
-    return parser,parser_yaml
+    return parser, parser_yaml
 
 
-def main(downstream_task:str, experiment_name:str, model_name:str, augmentations:bool=False, batch_size:int=16, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-         early_stop:int=25, epochs:int=250, input_channels:int=10, input_size:int=128, lr:float=0.001, lr_scheduler:str=None,
-         n_shot:int=None, num_workers:int=4, output_channels:int=1, regions:list=None, split_ratio:float=0.1, vis_val=True, warmup=False, pretrained_model_path=None, freeze_pretrained=None,
-         data_path_128_10m=None, data_path_224_10m=None, data_path_224_30m=None, data_parallel:bool=False):
+def main(experiment_name:str, downstream_task:str, model_name:str, augmentations:bool=False, batch_size:int=16, 
+         model_device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), generator_device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), num_workers:int=4,
+         early_stop:int=25, epochs:int=250, input_channels:int=10, output_channels:int=1, input_size:int=128, lr:float=0.001, lr_scheduler:str=None,
+         n_shot:int=None, split_ratio:float=0.1, regions:list=None,  vis_val:bool=True, warmup:bool=False , warmp_steps:int=5, warmup_gamma:int=10, pretrained_model_path:str=None, freeze_pretrained:bool=None,
+         data_path_128_10m:str=None, data_path_224_10m:str=None, data_path_224_30m:str=None, output_path:str=None, data_parallel:bool=False, device_ids:list=None):
+    f""" main script for PhilEO Bench. Used to run model training experiments with randomly initialized and pre-trained models on a number of downstream tasks. 
+        The script handles dataset creation (based on data protocol options selected), data preprocessing (based on downstream task & model type) & model, training, validation and testing. 
 
+    Args:
+        experiment_name (str): Experiment name
+        downstream_task (str): Select downstream task to test, validate and test on. Options: {DOWNSTREAM_LIST}
+        model_name (str): Select model. Options:{MODEL_LIST}
+        augmentations (bool, optional): Toggle on/off basic data augmentations (Rotation, Mirror, Noise). Defaults to False.
+        batch_size (int, optional): Define training batch size. Defaults to 16.
+        model_device (_type_, optional): Select model device. Defaults to torch.device('cuda' if torch.cuda.is_available() else 'cpu').
+        generator_device (_type_, optional): Select dataloader device. Defaults to torch.device('cuda' if torch.cuda.is_available() else 'cpu').
+        num_workers (int, optional): Select number of workers for dataloader. Defaults to 4.
+        early_stop (int, optional):Define early stoping patience. Defaults to 25.
+        epochs (int, optional): Define number of training epochs. Defaults to 250.
+        input_channels (int, optional): Define number of data input channels. Defaults to 10.
+        output_channels (int, optional): Define number of model output channels. Defaults to 1.
+        input_size (int, optional): Define data input size. Defaults to 128.
+        lr (float, optional): Define optimizer learning rate. Defaults to 0.001.
+        lr_scheduler (str, optional): Define learning rate scheduler. Options: [None, 'reduce_on_plateau', 'cosine_annealing']. Defaults to None.
+        n_shot (int, optional): Define dataset protocol - n samples per region. Defaults to None.
+        split_ratio (float, optional): Define dataset protocol - percentage of full dataset. Defaults to 0.1.
+        regions (list, optional): Select regions to include in training and test sets. If no regions are defined (None) all avalible regions will be included
+                                  Options: [None, 'denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
+                                 'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
+                                 'tanzania-1', 'tanzania-2', 'tanzania-3', 'tanzania-4', 'tanzania-5', 'uganda-1'] Defaults to None.
+        vis_val (bool, optional): If set to True data visulisations will be generated at each validation step. Defaults to True.
+        warmup (bool, optional): If set to True a linear optimizer warmup phase will occour. Defaults to False.
+        warmp_steps (int, optional): Define number of steps for linear warmup phase. Defaults to 5.
+        warmup_gamma (int, optional): Define learning rate increase per step in linear warmup phase - new_lr = lr*gamma. Defaults to 10. N.B. initial lr is calulated as follows init_lr = lr/(gamma**warmup_steps)
+        pretrained_model_path (str, optional): For pretrained models define the model weights path. Defaults to None.
+        freeze_pretrained (bool, optional): If True pretrained encoder weights will be frozen during training. Defaults to None.
+        data_path_128_10m (str, optional): Define data path for 128x128 10m resolution dataset. Defaults to None.
+        data_path_224_10m (str, optional): Define data path for 224x224 10m resolution dataset. Defaults to None.
+        data_path_224_30m (str, optional): Define data path for 224x224 30m resolution dataset. Defaults to None.
+        output_path (str, optional): Define folder to save artifacts in. Defaults to None.
+        data_parallel (bool, optional): If set to True Model training will be parallized on multiple gpus. Defaults to False.
+        device_ids (list, optional): Define GPU IDs to use for parallization. Defaults to None.
+    """         
+    
     init_lr = lr
     # device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    torch.set_default_device(device)
-    print('DEVICE', device)
+    torch.set_default_device(model_device)
+    print('DEVICE', model_device)
 
     assert not (n_shot == None) or not (split_ratio == None), 'Please define data partition protocol!'
     assert isinstance(n_shot, int) ^ isinstance(split_ratio, float), 'n_shot cannot be used with split_ratio!'
     if (downstream_task == 'lc') or (downstream_task == 'lc_classification'):
-        assert not (output_channels == 1), 'land cover tasks should have 11 output channels'
+        assert (output_channels == 11), 'land cover tasks should have 11 output channels'
 
     if (downstream_task == 'roads') or (downstream_task == 'building'):
         assert output_channels == 1, 'road and building density estimation tasks should have a single output channel'
@@ -397,12 +452,12 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
         model = get_models(model_name, input_channels, output_channels, input_size)
         NAME = model.__class__.__name__
 
-    OUTPUT_FOLDER = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
+    OUTPUT_FOLDER = f'{output_path}/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}'
     if lr_scheduler is not None:
-        OUTPUT_FOLDER = f'/home/phimultigpu/phileo_NFS/phileo_data/experiments/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
+        OUTPUT_FOLDER = f'{output_path}/{experiment_name}/{downstream_task}/{date.today().strftime("%d%m%Y")}_{NAME}_{downstream_task}_{lr_scheduler}'
 
     if warmup:
-        lr = lr / 100000  # for warmup start
+        lr = lr / int((warmup_gamma)**(warmp_steps))  # for warmup start
 
     dataset_folder = data_path_128_10m
     dataset_name = '128_10m'
@@ -450,21 +505,21 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
                                                     batch_size=batch_size,
                                                     downstream_task=downstream_task,
                                                     model_name=model_name.split('_')[0],
-                                                    device=device
+                                                    device=generator_device
                                                     )
     
-
+    print(f'Training on: {model_name}')
+    print('--'*10)
     if data_parallel:
-        if torch.cuda.device_count() > 1 and model_name.split('_')[-1] != 'wSkip' :
+        if torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-            model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+            model = nn.DataParallel(model, device_ids=device_ids)
  
-    model.to(device)
+    model.to(model_device)
 
     if model_name == 'SatMAE' or model_name =='SatMAE_classifier':
-        print()
-        # import pdb; pdb.set_trace()
+
         model_summary = summary(model,
                                 input_size=(batch_size, input_channels, 96, 96), )
 
@@ -481,8 +536,8 @@ def main(downstream_task:str, experiment_name:str, model_name:str, augmentations
 
 
 
-    trainer = get_trainer(model_name, downstream_task, epochs, lr, model, device, lr_scheduler, warmup, early_stop, dl_train,
-                dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val)
+    trainer = get_trainer(model_name, downstream_task, epochs, lr, model, model_device, lr_scheduler, warmup, early_stop, dl_train,
+                          dl_val, dl_test, NAME, OUTPUT_FOLDER, vis_val, warmp_steps, warmup_gamma)
 
     trainer.train()
     trainer.test()

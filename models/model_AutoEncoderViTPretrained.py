@@ -7,18 +7,15 @@ from collections import OrderedDict
 from timm.models.vision_transformer import PatchEmbed, Block
 from utils.transformer_utils import get_2d_sincos_pos_embed, get_1d_sincos_pos_embed_from_grid
 
-
-
-class ViTCNN(nn.Module):
-    """ Masked Autoencoder with VisionTransformer backbone
+class ViTEncoder(nn.Module):
+    """ 
+        VisionTransformer backbone
     """
 
     def __init__(self, chw:tuple=(10, 64, 64), patch_size:int=4, output_dim:int=10,
-                 embed_dim=768, depth=12, num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, noisy_mask_token=True,
-                 decoder_norm='batch', decoder_padding='same',
-                 decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280]
+                 embed_dim=768, depth=12, num_heads=16, mlp_ratio=4., norm_layer=nn.LayerNorm, 
                  ):
+        
         super().__init__()
 
         # Attributes
@@ -26,7 +23,6 @@ class ViTCNN(nn.Module):
         self.in_c = chw[0]
         self.img_size = chw[1]
         self.patch_size = patch_size
-        self.noisy_mask_token = noisy_mask_token
         self.output_dim = output_dim
 
         # --------------------------------------------------------------------------
@@ -42,31 +38,10 @@ class ViTCNN(nn.Module):
             Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer)
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
-        # --------------------------------------------------------------------------
 
-        # --------------------------------------------------------------------------
-        # CNN Decoder Blocks:
-        self.depths = decoder_depths
-        self.dims = decoder_dims
-        self.decoder_head = CoreDecoder(embedding_dim=embed_dim,
-                                        output_dim=output_dim,
-                                        depths=decoder_depths, 
-                                        dims= decoder_dims)
         
-
-        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embed_dim,
-                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
-                                                                   padding=decoder_padding),
-                                                      EncoderBlock(depth=1, in_channels=embed_dim,
-                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation, 
-                                                                   padding=decoder_padding)
-                                                      )
-
-        # --------------------------------------------------------------------------
-
-        self.norm_pix_loss = norm_pix_loss
-
         self.initialize_weights()
+        # --------------------------------------------------------------------------
 
     def initialize_weights(self):
         # initialization
@@ -96,7 +71,7 @@ class ViTCNN(nn.Module):
             nn.init.constant_(m.weight, 1.0)
 
 
-    def forward_encoder(self, x):
+    def forward(self, x):
         # embed patches
         x = self.patch_embed(x)
 
@@ -112,11 +87,64 @@ class ViTCNN(nn.Module):
         for blk in self.blocks:
             x = blk(x)
         x = self.norm(x)
-
-        # remove cls token
-        x = x[:, 1:, :]
+        # # remove cls token
+        # x = x[:, 1:, :]
 
         return x
+
+
+class ViTCNN(nn.Module):
+    """ 
+    Autoencoder model with pretrained VisionTransformer backbone
+    """
+
+    def __init__(self, chw:tuple=(10, 64, 64), patch_size:int=4, output_dim:int=10,
+                 embed_dim=768, depth=12, num_heads=16,
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, noisy_mask_token=True,
+                 decoder_norm='batch', decoder_padding='same',
+                 decoder_activation='relu', decoder_depths=[2, 2, 8, 2], decoder_dims=[160, 320, 640, 1280]
+                 ):
+        super().__init__()
+
+        # Attributes
+        self.chw = chw  # (C, H, W)
+        self.in_c = chw[0]
+        self.img_size = chw[1]
+        self.patch_size = patch_size
+        self.noisy_mask_token = noisy_mask_token
+        self.output_dim = output_dim
+
+        # --------------------------------------------------------------------------
+        # encoder specifics
+        self.vit_encoder = ViTEncoder(chw=chw, 
+                                      patch_size=patch_size, output_dim=output_dim,
+                                      embed_dim=embed_dim, depth=depth, num_heads=num_heads,
+                                      mlp_ratio=mlp_ratio, norm_layer=norm_layer)
+ 
+        # --------------------------------------------------------------------------
+
+        # --------------------------------------------------------------------------
+        # CNN Decoder Blocks:
+        self.depths = decoder_depths
+        self.dims = decoder_dims
+        self.decoder_head = CoreDecoder(embedding_dim=embed_dim,
+                                        output_dim=output_dim,
+                                        depths=decoder_depths, 
+                                        dims= decoder_dims,
+                                        activation=decoder_activation,
+                                        padding=decoder_padding, 
+                                        norm=decoder_norm)
+        
+
+        self.decoder_downsample_block = nn.Sequential(EncoderBlock(depth=1, in_channels=embed_dim,
+                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation,
+                                                                   padding=decoder_padding),
+                                                      EncoderBlock(depth=1, in_channels=embed_dim,
+                                                                   out_channels=embed_dim, norm=decoder_norm, activation=decoder_activation, 
+                                                                   padding=decoder_padding)
+                                                      )
+
+        # --------------------------------------------------------------------------   
 
     def reshape(self, x):
         # Separate channel axis
@@ -127,7 +155,11 @@ class ViTCNN(nn.Module):
         return x
 
     def forward(self, x):
-        x = self.forward_encoder(x)
+        x = self.vit_encoder(x)
+
+        # remove cls token
+        x = x[:, 1:, :]
+        # reshape into 2d features
         x = self.reshape(x)
         x = self.decoder_downsample_block(x)
         x = self.decoder_head(x)
@@ -191,42 +223,41 @@ def vit_huge(**kwargs):
 def vit_cnn_gc(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
 
     model = vit_base_gc(img_size=img_size, patch_size=patch_size, in_chans=in_chans, output_dim=output_dim,  **kwargs)
-    state_dict = model.state_dict()
+    state_dict = model.vit_encoder.state_dict()
 
     for k in ['pos_embed', 'patch_embed.proj.weight', 'patch_embed.proj.bias', 'head.weight', 'head.bias']:
         if k in checkpoint and checkpoint[k].shape != state_dict[k].shape:
             print(f"Removing key {k} from pretrained checkpoint")
             del checkpoint[k]
 
-    if freeze_body:
-        for name, param in model.named_parameters():
-            if not name.startswith('decoder'):
-                param.requires_grad = False
-
-    # load pre-trained model
-    msg = model.load_state_dict(checkpoint, strict=False)
+    # load pre-trained model weights
+    msg = model.vit_encoder.load_state_dict(checkpoint, strict=False)
     print(msg)
+
+    if freeze_body:
+        for _, param in model.vit_encoder.named_parameters():
+            param.requires_grad = False
+
     return model
 
 
 def vit_cnn(checkpoint, img_size=128, patch_size=4, in_chans=10, output_dim=1, freeze_body=True, **kwargs):
 
     model = vit_large(chw=(in_chans, img_size, img_size), patch_size=patch_size, output_dim=output_dim,  **kwargs)
-    state_dict = model.state_dict()
+    state_dict = model.vit_encoder.state_dict()
 
     for k in ['pos_embed', 'patch_embed.proj.weight', 'patch_embed.proj.bias', 'head.weight', 'head.bias']:
         if k in checkpoint and checkpoint[k].shape != state_dict[k].shape:
             print(f"Removing key {k} from pretrained checkpoint")
             del checkpoint[k]
 
-    # load pre-trained model
-    msg = model.load_state_dict(checkpoint, strict=False)
+    # load pre-trained model weights
+    msg = model.vit_encoder.load_state_dict(checkpoint, strict=False)
     print(msg)
 
     if freeze_body:
-        for name, param in model.named_parameters():
-            if not name.startswith('decoder'):
-                param.requires_grad = False
+        for _, param in model.vit_encoder.named_parameters():
+            param.requires_grad = False
 
     return model
 

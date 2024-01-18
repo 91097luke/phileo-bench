@@ -20,7 +20,10 @@ class Seco(nn.Module):
         self.decoder_head = CoreDecoder(embedding_dim=2048,
                                         output_dim=output_dim,
                                         depths=decoder_depths, 
-                                        dims= decoder_dims)
+                                        dims= decoder_dims,
+                                        activation=decoder_activation,
+                                        padding=decoder_padding, 
+                                        norm=decoder_norm)
 
         self.decoder_upsample_block = nn.Sequential(DecoderBlock(depth=1, in_channels=2048,
                                                                  out_channels=2048,                 
@@ -67,15 +70,8 @@ def seasonal_contrast(checkpoint, output_dim=1, freeze_body=True, classifier=Fal
         model = Seco(ckpt_path=checkpoint, output_dim=output_dim, **kwargs)
 
     if freeze_body:
-        if classifier:
-            for name, param in model.named_parameters():
-                if not not name.startswith('classification'):
-                    param.requires_grad = False
-
-        else:
-            for name, param in model.named_parameters():
-                if not name.startswith('decoder'):
-                    param.requires_grad = False
+        for _, param in model.encoder.named_parameters():
+            param.requires_grad = False
 
     return model
 
