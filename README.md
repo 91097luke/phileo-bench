@@ -135,8 +135,8 @@ python n_shot_experiment_classifier.py [--experiment_name EXPERIMENT_NAME] --mod
 -- input_size (int, optional):                      Define data input size. Defaults to 128.
 -- lr (float, optional):                            Define optimizer learning rate. Defaults to 0.001.
 -- lr_scheduler (str, optional):                    Define learning rate scheduler. Options: [None, 'reduce_on_plateau', 'cosine_annealing']. Defaults to None.
--- n_shot (int, optional):                          Define dataset protocol - n samples per region. Defaults to None.
--- split_ratio (float, optional):                   Define dataset protocol - percentage of full dataset. Defaults to 0.1.
+-- n_shot (int, optional):                          Define n-shot (n samples per region) dataset protocol - n samples per region. Defaults to None.
+-- split_ratio (float, optional):                   Define percetage split ((total samples)*p per region) dataset protocol - percentage of full dataset. Defaults to 0.1.
 -- regions (list, optional):                        Select regions to include in training and test sets. If no regions are defined (None) all avalible regions will be included
                                                     Options: [None, 'denmark-1', 'denmark-2', 'east-africa', 'egypt-1', 'eq-guinea', 'europe', 'ghana-1',
                                                               'isreal-1', 'isreal-2', 'japan', 'nigeria', 'north-america', 'senegal', 'south-america',
